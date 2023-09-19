@@ -19,7 +19,10 @@ ifeq ("${SALT_ONEDIR_ARCHIVE}", "")
 override_dh_auto_build:
 	export FETCH_RELENV_VERSION=$${SALT_RELENV_VERSION}
 	mkdir -p build/onedir
-	python3 -m venv --clear --copies build/onedir/venv
+	/usr/local/bin/relenv fetch --python=$${SALT_PYTHON_VERSION}
+	rm -rf relenv
+	/usr/local/bin/relenv create --python=$${SALT_PYTHON_VERSION} relenv
+	relenv/bin/python3 -m venv --clear --copies build/onedir/venv
 	build/onedir/venv/bin/python3 -m pip install relenv==$${SALT_RELENV_VERSION}
 	export FETCH_RELENV_VERSION=$${SALT_RELENV_VERSION}
 	export PY=$$(build/onedir/venv/bin/python3 -c 'import sys; sys.stdout.write("{}.{}".format(*sys.version_info)); sys.stdout.flush()') \
