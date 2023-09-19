@@ -3765,8 +3765,11 @@ def symlink(src, path, force=False, atomic=False):
         msg = "Existing path is not a symlink: {}".format(path)
         raise CommandExecutionError(msg)
 
-    if (os.path.islink(path) or os.path.exists(path)) and force and not atomic:
-        os.unlink(path)
+    if force and not atomic:
+        if os.path.islink(path) or os.path.isfile(path):
+            os.unlink(path)
+        elif os.path.isdir(path):
+            shutil.rmtree(path)
     elif atomic:
         link_dir = os.path.dirname(path)
         retry = 0
