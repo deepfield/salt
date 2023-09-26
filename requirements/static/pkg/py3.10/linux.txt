@@ -22,6 +22,10 @@ cryptography==41.0.3
     #   pyopenssl
 distro==1.5.0
     # via -r requirements/base.txt
+gitdb==4.0.10
+    # via gitpython
+gitpython==3.1.37
+    # via -r requirements/deepfield.txt
 idna==2.8
     # via requests
 immutables==0.15
@@ -94,6 +98,8 @@ six==1.16.0
     #   cheroot
     #   more-itertools
     #   python-dateutil
+smmap==5.0.1
+    # via gitdb
 tempora==4.1.1
     # via portend
 timelib==0.2.5
