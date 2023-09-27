@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=requirements/static/pkg/py3.10/linux.txt requirements/base.txt requirements/deepfield.txt requirements/static/pkg/linux.in requirements/zeromq.txt
 #
+async-timeout==4.0.3
+    # via redis
 certifi==2023.7.22
     # via requests
 cffi==1.14.6
@@ -87,6 +89,8 @@ pyyaml==6.0.1
     # via -r requirements/base.txt
 pyzmq==23.2.0
     # via -r requirements/zeromq.txt
+redis==5.0.1
+    # via -r requirements/deepfield.txt
 requests==2.31.0
     # via -r requirements/base.txt
 rpm-vercmp==0.1.2
