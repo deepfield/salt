@@ -404,15 +404,11 @@ contextvars==2.4
     #   -r requirements/base.txt
 croniter==2.0.1 ; sys_platform != "win32"
     # via -r requirements/static/ci/common.in
-cryptography==41.0.4
+cryptography==41.0.7
     # via
     #   -c requirements/static/pkg/py3.10/linux.txt
     #   -r requirements/static/pkg/linux.in
-    #   adal
     #   ansible-core
-    #   azure-cosmosdb-table
-    #   azure-keyvault
-    #   azure-storage-common
     #   etcd3-py
     #   moto
     #   msal
@@ -732,7 +728,9 @@ pycryptodomex==3.9.8
     # via
     #   -c requirements/static/pkg/py3.10/linux.txt
     #   -r requirements/crypto.txt
-pygit2==1.9.1 ; python_version >= "3.10"
+pyfakefs==5.3.1
+    # via -r requirements/pytest.txt
+pygit2==1.13.1
     # via -r requirements/static/ci/linux.in
 pyiface==0.0.11
     # via -r requirements/static/ci/linux.in
@@ -778,11 +776,11 @@ pytest-helpers-namespace==2021.12.29
     #   pytest-shell-utilities
 pytest-httpserver==1.0.8
     # via -r requirements/pytest.txt
-pytest-salt-factories==1.0.0rc27
+pytest-salt-factories==1.0.0rc28
     # via -r requirements/pytest.txt
 pytest-shell-utilities==1.8.0
     # via pytest-salt-factories
-pytest-skip-markers==1.4.1
+pytest-skip-markers==1.5.0
     # via
     #   pytest-salt-factories
     #   pytest-shell-utilities
@@ -799,9 +797,6 @@ python-dateutil==2.8.1
     # via
     #   -c requirements/static/pkg/py3.10/linux.txt
     #   -r requirements/static/pkg/linux.in
-    #   adal
-    #   azure-cosmosdb-table
-    #   azure-storage-common
     #   botocore
     #   croniter
     #   kubernetes
@@ -853,7 +848,6 @@ requests==2.31.0
     #   -c requirements/static/pkg/py3.10/linux.txt
     #   -r requirements/base.txt
     #   -r requirements/static/ci/common.in
-    #   adal
     #   apache-libcloud
     #   azure-core
     #   azure-cosmosdb-table
