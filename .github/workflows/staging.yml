@@ -37,8 +37,10 @@ on:
 
 env:
   COLUMNS: 190
-  CACHE_SEED: SEED-5  # Bump the number to invalidate all caches
+  CACHE_SEED: SEED-2  # Bump the number to invalidate all caches
   RELENV_DATA: "${{ github.workspace }}/.relenv"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  RAISE_DEPRECATIONS_RUNTIME_ERRORS: "1"
 
 permissions:
   contents: read  # for dorny/paths-filter to fetch a list of changed files
@@ -53,7 +55,7 @@ jobs:
 
   check-requirements:
     name: Check Requirements
-    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "linux", "x86_64"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     environment: staging-check
     steps:
       - name: Check For Admin Permission
@@ -64,20 +66,22 @@ jobs:
 
   prepare-workflow:
     name: Prepare Workflow Run
-    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "linux", "x86_64"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     needs:
       - check-requirements
     outputs:
       jobs: ${{ steps.define-jobs.outputs.jobs }}
       runners: ${{ steps.runner-types.outputs.runners }}
       changed-files: ${{ steps.process-changed-files.outputs.changed-files }}
-      pull-labels: ${{ steps.get-pull-labels.outputs.labels }}
+      os-labels: ${{ steps.get-pull-labels.outputs.os-labels }}
+      pull-labels: ${{ steps.get-pull-labels.outputs.test-labels }}
       testrun: ${{ steps.define-testrun.outputs.testrun }}
       salt-version: ${{ steps.setup-salt-version.outputs.salt-version }}
       cache-seed: ${{ steps.set-cache-seed.outputs.cache-seed }}
       latest-release: ${{ steps.get-salt-releases.outputs.latest-release }}
       releases: ${{ steps.get-salt-releases.outputs.releases }}
       testing-releases: ${{ steps.get-testing-releases.outputs.testing-releases }}
+      nox-archive-hash: ${{ steps.nox-archive-hash.outputs.nox-archive-hash }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,7 +90,7 @@ jobs:
       - name: Get Changed Files
         if: ${{ github.event_name == 'pull_request'}}
         id: changed-files
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         with:
           token: ${{ github.token }}
           list-files: json
@@ -122,6 +126,7 @@ jobs:
             docs:
               - added|modified:
                 - doc/**
+                - .github/workflows/build-docs.yml
                 - *doc_requirements
             workflows:
               - added|modified:
@@ -161,7 +166,7 @@ jobs:
                 - *pkg_tests_added_modified
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -193,6 +198,11 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tools ci get-pr-test-labels --repository ${{ github.repository }}
+
+      - name: Get Hash For Nox Tarball Cache
+        id: nox-archive-hash
+        run: |
+          echo "nox-archive-hash=${{ hashFiles('requirements/**/*.txt', 'cicd/golden-images.json', 'noxfile.py', 'pkg/common/env-cleanup-rules.yml', '.github/workflows/build-deps-ci-action.yml') }}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Check Existing Releases
         env:
@@ -227,18 +237,10 @@ jobs:
         run: |
           tools ci runner-types ${{ github.event_name }}
 
-      - name: Check Defined Runners
-        run: |
-          echo '${{ steps.runner-types.outputs.runners }}' | jq -C '.'
-
-      - name: Define Jobs
+      - name: Define Jobs To Run
         id: define-jobs
         run: |
           tools ci define-jobs${{ inputs.skip-salt-test-suite && ' --skip-tests' || '' }}${{ inputs.skip-salt-pkg-test-suite && ' --skip-pkg-tests' || '' }}${{ inputs.skip-salt-pkg-download-test-suite && ' --skip-pkg-download-tests' || '' }} ${{ github.event_name }} changed-files.json
-
-      - name: Check Defined Jobs
-        run: |
-          echo '${{ steps.define-jobs.outputs.jobs }}' | jq -C '.'
 
       - name: Get Salt Releases
         id: get-salt-releases
@@ -254,20 +256,10 @@ jobs:
         run: |
           tools ci get-testing-releases ${{ join(fromJSON(steps.get-salt-releases.outputs.releases), ' ') }} --salt-version ${{ steps.setup-salt-version.outputs.salt-version }}
 
-      - name: Check Salt Releases
-        run: |
-          echo '${{ steps.get-salt-releases.outputs.latest-release }}' | jq -C '.'
-          echo '${{ steps.get-salt-releases.outputs.releases }}' | jq -C '.'
-          echo '${{ steps.get-testing-releases.outputs.testing-releases }}' | jq -C '.'
-
       - name: Define Testrun
         id: define-testrun
         run: |
           tools ci define-testrun ${{ github.event_name }} changed-files.json
-
-      - name: Check Defined Test Run
-        run: |
-          echo '${{ steps.define-testrun.outputs.testrun }}' | jq -C '.'
 
       - name: Check Contents of generated testrun-changed-files.txt
         if: ${{ fromJSON(steps.define-testrun.outputs.testrun)['type'] != 'full' }}
@@ -276,7 +268,7 @@ jobs:
 
       - name: Upload testrun-changed-files.txt
         if: ${{ fromJSON(steps.define-testrun.outputs.testrun)['type'] != 'full' }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: testrun-changed-files.txt
           path: testrun-changed-files.txt
@@ -402,7 +394,7 @@ jobs:
           git format-patch --keep-subject --binary --stdout HEAD^ > salt-${{ needs.prepare-workflow.outputs.salt-version }}.patch
 
       - name: Upload Changes Diff Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ startsWith(github.event.ref, 'refs/tags') == false }}
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}.patch
@@ -427,12 +419,12 @@ jobs:
     needs:
       - prepare-workflow
       - prepare-release
-    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "linux", "medium", "x86_64"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -452,920 +444,178 @@ jobs:
         with:
           salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
 
-  build-deps-onedir-linux:
+  build-deps-onedir:
     name: Build Dependencies Onedir
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-onedir'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-    uses: ./.github/workflows/build-deps-onedir-linux.yml
+    uses: ./.github/workflows/build-deps-onedir.yml
     with:
       cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       self-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
       github-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-      relenv-version: "0.14.2"
-      python-version: "3.10.13"
+      relenv-version: "0.16.0"
+      python-version: "3.10.14"
 
-  build-deps-onedir-windows:
-    name: Build Dependencies Onedir
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-onedir'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-    uses: ./.github/workflows/build-deps-onedir-windows.yml
-    with:
-      cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      self-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-      github-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-      relenv-version: "0.14.2"
-      python-version: "3.10.13"
-
-  build-deps-onedir-macos:
-    name: Build Dependencies Onedir
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-onedir'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-    uses: ./.github/workflows/build-deps-onedir-macos.yml
-    with:
-      cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      self-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-      github-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-      relenv-version: "0.14.2"
-      python-version: "3.10.13"
-
-  build-salt-onedir-linux:
+  build-salt-onedir:
     name: Build Salt Onedir
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-salt-onedir'] }}
     needs:
       - prepare-workflow
-      - build-deps-onedir-linux
+      - build-deps-onedir
       - build-source-tarball
-    uses: ./.github/workflows/build-salt-onedir-linux.yml
+    uses: ./.github/workflows/build-salt-onedir.yml
     with:
       cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       self-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
       github-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-      relenv-version: "0.14.2"
-      python-version: "3.10.13"
+      relenv-version: "0.16.0"
+      python-version: "3.10.14"
 
-  build-salt-onedir-windows:
-    name: Build Salt Onedir
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-salt-onedir'] }}
-    needs:
-      - prepare-workflow
-      - build-deps-onedir-windows
-      - build-source-tarball
-    uses: ./.github/workflows/build-salt-onedir-windows.yml
-    with:
-      cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      self-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-      github-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-      relenv-version: "0.13.11"
-      python-version: "3.10.13"
-
-  build-salt-onedir-macos:
-    name: Build Salt Onedir
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-salt-onedir'] }}
-    needs:
-      - prepare-workflow
-      - build-deps-onedir-macos
-      - build-source-tarball
-    uses: ./.github/workflows/build-salt-onedir-macos.yml
-    with:
-      cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      self-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-      github-hosted-runners: ${{ fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-      relenv-version: "0.13.11"
-      python-version: "3.10.13"
-
-  build-rpm-pkgs-onedir:
+  build-pkgs-onedir:
     name: Build Packages
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-rpm-packages.yml
-    with:
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.13.11"
-      python-version: "3.10.13"
-      source: "onedir"
-
-  build-rpm-pkgs-src:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-rpm-packages.yml
+      - build-salt-onedir
+    uses: ./.github/workflows/build-packages.yml
     with:
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      relenv-version: "0.14.2"
-      python-version: "3.10.13"
-      source: "src"
+      relenv-version: "0.16.0"
+      python-version: "3.10.14"
+      source: "onedir"
+      environment: staging
+      sign-macos-packages: true
+      sign-windows-packages: ${{ inputs.sign-windows-packages }}
+    secrets: inherit
 
-  build-deb-pkgs-onedir:
+  build-pkgs-src:
     name: Build Packages
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deb-packages.yml
-    with:
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.13.11"
-      python-version: "3.10.13"
-      source: "onedir"
-
-  build-deb-pkgs-src:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deb-packages.yml
-    with:
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.13.11"
-      python-version: "3.10.13"
-      source: "src"
-
-  build-windows-pkgs-onedir:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-windows
-    uses: ./.github/workflows/build-windows-packages.yml
-    with:
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.13.11"
-      python-version: "3.10.13"
-      source: "onedir"
-      environment: staging
-      sign-packages: ${{ inputs.sign-windows-packages }}
-    secrets: inherit
-
-  build-windows-pkgs-src:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-windows
-    uses: ./.github/workflows/build-windows-packages.yml
+      - build-salt-onedir
+    uses: ./.github/workflows/build-packages.yml
     with:
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      relenv-version: "0.14.2"
-      python-version: "3.10.13"
+      relenv-version: "0.16.0"
+      python-version: "3.10.14"
       source: "src"
       environment: staging
-      sign-packages: ${{ inputs.sign-windows-packages }}
+      sign-macos-packages: true
+      sign-windows-packages: ${{ inputs.sign-windows-packages }}
     secrets: inherit
-
-  build-macos-pkgs-onedir:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-macos
-    uses: ./.github/workflows/build-macos-packages.yml
-    with:
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.13.11"
-      python-version: "3.10.13"
-      source: "onedir"
-      environment: staging
-      sign-packages: true
-    secrets: inherit
-
-  build-macos-pkgs-src:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-macos
-    uses: ./.github/workflows/build-macos-packages.yml
-    with:
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      relenv-version: "0.14.2"
-      python-version: "3.10.13"
-      source: "src"
-      environment: staging
-      sign-packages: true
-    secrets: inherit
-
-  windows-2016-ci-deps:
-    name: Windows 2016 Deps
+  build-ci-deps:
+    name: CI Deps
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-salt-onedir-windows
+      - build-salt-onedir
     uses: ./.github/workflows/build-deps-ci-action.yml
     with:
-      distro-slug: windows-2016
       nox-session: ci-test-onedir
-      platform: windows
-      arch: amd64
       nox-version: 2022.8.7
       python-version: "3.10"
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
+      nox-archive-hash: "${{ needs.prepare-workflow.outputs.nox-archive-hash }}"
 
-  windows-2019-ci-deps:
-    name: Windows 2019 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
+  rockylinux-8-pkg-tests:
+    name: Rocky Linux 8 Package Test
+    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-salt-onedir-windows
-    uses: ./.github/workflows/build-deps-ci-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
-      distro-slug: windows-2019
-      nox-session: ci-test-onedir
-      platform: windows
-      arch: amd64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  windows-2022-ci-deps:
-    name: Windows 2022 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-windows
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: windows-2022
-      nox-session: ci-test-onedir
-      platform: windows
-      arch: amd64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  macos-12-ci-deps:
-    name: macOS 12 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-macos
-    uses: ./.github/workflows/build-deps-ci-action-macos.yml
-    with:
-      distro-slug: macos-12
-      nox-session: ci-test-onedir
-      platform: darwin
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  macos-13-ci-deps:
-    name: macOS 13 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-macos
-    uses: ./.github/workflows/build-deps-ci-action-macos.yml
-    with:
-      distro-slug: macos-13
-      nox-session: ci-test-onedir
-      platform: darwin
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  macos-13-xlarge-ci-deps:
-    name: macOS 13 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-macos
-    uses: ./.github/workflows/build-deps-ci-action-macos.yml
-    with:
-      distro-slug: macos-13-xlarge
-      nox-session: ci-test-onedir
-      platform: darwin
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  almalinux-8-ci-deps:
-    name: Alma Linux 8 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: almalinux-8
+      distro-slug: rockylinux-8
       nox-session: ci-test-onedir
       platform: linux
       arch: x86_64
+      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
+      pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
+      skip-code-coverage: true
+      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
-  almalinux-8-arm64-ci-deps:
-    name: Alma Linux 8 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
+  rockylinux-8-arm64-pkg-tests:
+    name: Rocky Linux 8 Arm64 Package Test
+    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
-      distro-slug: almalinux-8-arm64
+      distro-slug: rockylinux-8-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
+      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
+      pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
+      skip-code-coverage: true
+      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
-  almalinux-9-ci-deps:
-    name: Alma Linux 9 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
+  rockylinux-9-pkg-tests:
+    name: Rocky Linux 9 Package Test
+    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
-      distro-slug: almalinux-9
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  almalinux-9-arm64-ci-deps:
-    name: Alma Linux 9 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: almalinux-9-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  amazonlinux-2-ci-deps:
-    name: Amazon Linux 2 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: amazonlinux-2
+      distro-slug: rockylinux-9
       nox-session: ci-test-onedir
       platform: linux
       arch: x86_64
+      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
+      pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
+      skip-code-coverage: true
+      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
-  amazonlinux-2-arm64-ci-deps:
-    name: Amazon Linux 2 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
+  rockylinux-9-arm64-pkg-tests:
+    name: Rocky Linux 9 Arm64 Package Test
+    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
-      distro-slug: amazonlinux-2-arm64
+      distro-slug: rockylinux-9-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
+      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
+      pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  amazonlinux-2023-ci-deps:
-    name: Amazon Linux 2023 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: amazonlinux-2023
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  amazonlinux-2023-arm64-ci-deps:
-    name: Amazon Linux 2023 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: amazonlinux-2023-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  archlinux-lts-ci-deps:
-    name: Arch Linux LTS Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: archlinux-lts
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  centos-7-ci-deps:
-    name: CentOS 7 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: centos-7
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  centos-7-arm64-ci-deps:
-    name: CentOS 7 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: centos-7-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  centosstream-8-ci-deps:
-    name: CentOS Stream 8 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: centosstream-8
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  centosstream-8-arm64-ci-deps:
-    name: CentOS Stream 8 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: centosstream-8-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  centosstream-9-ci-deps:
-    name: CentOS Stream 9 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: centosstream-9
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  centosstream-9-arm64-ci-deps:
-    name: CentOS Stream 9 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: centosstream-9-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  debian-10-ci-deps:
-    name: Debian 10 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: debian-10
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  debian-11-ci-deps:
-    name: Debian 11 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: debian-11
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  debian-11-arm64-ci-deps:
-    name: Debian 11 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: debian-11-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  debian-12-ci-deps:
-    name: Debian 12 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: debian-12
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  debian-12-arm64-ci-deps:
-    name: Debian 12 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: debian-12-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  fedora-37-ci-deps:
-    name: Fedora 37 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: fedora-37
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  fedora-37-arm64-ci-deps:
-    name: Fedora 37 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: fedora-37-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  fedora-38-ci-deps:
-    name: Fedora 38 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: fedora-38
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  fedora-38-arm64-ci-deps:
-    name: Fedora 38 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: fedora-38-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  opensuse-15-ci-deps:
-    name: Opensuse 15 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: opensuse-15
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  photonos-3-ci-deps:
-    name: Photon OS 3 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: photonos-3
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  photonos-3-arm64-ci-deps:
-    name: Photon OS 3 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: photonos-3-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  photonos-4-ci-deps:
-    name: Photon OS 4 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: photonos-4
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  photonos-4-arm64-ci-deps:
-    name: Photon OS 4 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: photonos-4-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  photonos-5-ci-deps:
-    name: Photon OS 5 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: photonos-5
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  photonos-5-arm64-ci-deps:
-    name: Photon OS 5 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: photonos-5-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  ubuntu-2004-ci-deps:
-    name: Ubuntu 20.04 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: ubuntu-20.04
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  ubuntu-2004-arm64-ci-deps:
-    name: Ubuntu 20.04 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: ubuntu-20.04-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  ubuntu-2204-ci-deps:
-    name: Ubuntu 22.04 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: ubuntu-22.04
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-
-  ubuntu-2204-arm64-ci-deps:
-    name: Ubuntu 22.04 Arm64 Deps
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['build-deps-ci'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-salt-onedir-linux
-    uses: ./.github/workflows/build-deps-ci-action.yml
-    with:
-      distro-slug: ubuntu-22.04-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
+      skip-code-coverage: true
+      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   amazonlinux-2-pkg-tests:
     name: Amazon Linux 2 Package Test
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - amazonlinux-2-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: amazonlinux-2
       nox-session: ci-test-onedir
@@ -1375,9 +625,8 @@ jobs:
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   amazonlinux-2-arm64-pkg-tests:
@@ -1385,21 +634,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - amazonlinux-2-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: amazonlinux-2-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   amazonlinux-2023-pkg-tests:
@@ -1407,9 +655,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - amazonlinux-2023-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: amazonlinux-2023
       nox-session: ci-test-onedir
@@ -1419,9 +667,8 @@ jobs:
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   amazonlinux-2023-arm64-pkg-tests:
@@ -1429,21 +676,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - amazonlinux-2023-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: amazonlinux-2023-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   centos-7-pkg-tests:
@@ -1451,9 +697,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - centos-7-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: centos-7
       nox-session: ci-test-onedir
@@ -1463,97 +709,8 @@ jobs:
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
-      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
-
-  centosstream-8-pkg-tests:
-    name: CentOS Stream 8 Package Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - centosstream-8-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
-    with:
-      distro-slug: centosstream-8
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      pkg-type: rpm
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
-      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
-
-  centosstream-9-pkg-tests:
-    name: CentOS Stream 9 Package Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - centosstream-9-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
-    with:
-      distro-slug: centosstream-9
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      pkg-type: rpm
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
-      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
-
-  centosstream-9-arm64-pkg-tests:
-    name: CentOS Stream 9 Arm64 Package Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - centosstream-9-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
-    with:
-      distro-slug: centosstream-9-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      pkg-type: rpm
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
-      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
-
-  debian-10-pkg-tests:
-    name: Debian 10 Package Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-deb-pkgs-onedir
-      - debian-10-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
-    with:
-      distro-slug: debian-10
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      pkg-type: deb
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   debian-11-pkg-tests:
@@ -1561,9 +718,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - debian-11-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: debian-11
       nox-session: ci-test-onedir
@@ -1573,9 +730,8 @@ jobs:
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   debian-11-arm64-pkg-tests:
@@ -1583,21 +739,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - debian-11-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: debian-11-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   debian-12-pkg-tests:
@@ -1605,9 +760,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - debian-12-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: debian-12
       nox-session: ci-test-onedir
@@ -1617,9 +772,8 @@ jobs:
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   debian-12-arm64-pkg-tests:
@@ -1627,65 +781,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - debian-12-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: debian-12-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
-      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
-
-  photonos-3-pkg-tests:
-    name: Photon OS 3 Package Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - photonos-3-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
-    with:
-      distro-slug: photonos-3
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      pkg-type: rpm
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
-      testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
-
-  photonos-3-arm64-pkg-tests:
-    name: Photon OS 3 Arm64 Package Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - photonos-3-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
-    with:
-      distro-slug: photonos-3-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      pkg-type: rpm
-      nox-version: 2022.8.7
-      python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   photonos-4-pkg-tests:
@@ -1693,9 +802,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - photonos-4-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: photonos-4
       nox-session: ci-test-onedir
@@ -1705,9 +814,8 @@ jobs:
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
       fips: true
 
@@ -1716,21 +824,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - photonos-4-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: photonos-4-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
       fips: true
 
@@ -1739,9 +846,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - photonos-5-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: photonos-5
       nox-session: ci-test-onedir
@@ -1751,9 +858,8 @@ jobs:
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
       fips: true
 
@@ -1762,21 +868,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
-      - photonos-5-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: photonos-5-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: rpm
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
       fips: true
 
@@ -1785,9 +890,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - ubuntu-2004-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: ubuntu-20.04
       nox-session: ci-test-onedir
@@ -1797,9 +902,8 @@ jobs:
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   ubuntu-2004-arm64-pkg-tests:
@@ -1807,21 +911,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - ubuntu-2004-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: ubuntu-20.04-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   ubuntu-2204-pkg-tests:
@@ -1829,9 +932,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - ubuntu-2204-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: ubuntu-22.04
       nox-session: ci-test-onedir
@@ -1841,9 +944,8 @@ jobs:
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   ubuntu-2204-arm64-pkg-tests:
@@ -1851,21 +953,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
-      - ubuntu-2204-arm64-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-linux.yml
     with:
       distro-slug: ubuntu-22.04-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: deb
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   macos-12-pkg-tests:
@@ -1873,21 +974,21 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
     needs:
       - prepare-workflow
-      - build-macos-pkgs-onedir
-      - macos-12-ci-deps
+      - build-pkgs-onedir
+      - build-ci-deps
     uses: ./.github/workflows/test-packages-action-macos.yml
     with:
       distro-slug: macos-12
+      runner: macos-12
       nox-session: ci-test-onedir
-      platform: darwin
+      platform: macos
       arch: x86_64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: macos
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   macos-13-pkg-tests:
@@ -1895,43 +996,43 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
     needs:
       - prepare-workflow
-      - build-macos-pkgs-onedir
-      - macos-13-ci-deps
+      - build-pkgs-onedir
+      - build-ci-deps
     uses: ./.github/workflows/test-packages-action-macos.yml
     with:
       distro-slug: macos-13
+      runner: macos-13
       nox-session: ci-test-onedir
-      platform: darwin
+      platform: macos
       arch: x86_64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: macos
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
-  macos-13-xlarge-pkg-tests:
+  macos-13-arm64-pkg-tests:
     name: macOS 13 Arm64 Package Test
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
     needs:
       - prepare-workflow
-      - build-macos-pkgs-onedir
-      - macos-13-xlarge-ci-deps
+      - build-pkgs-onedir
+      - build-ci-deps
     uses: ./.github/workflows/test-packages-action-macos.yml
     with:
-      distro-slug: macos-13-xlarge
+      distro-slug: macos-13-arm64
+      runner: macos-13-xlarge
       nox-session: ci-test-onedir
-      platform: darwin
-      arch: aarch64
+      platform: macos
+      arch: arm64
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       pkg-type: macos
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   windows-2016-nsis-pkg-tests:
@@ -1939,9 +1040,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-windows-pkgs-onedir
-      - windows-2016-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-windows.yml
     with:
       distro-slug: windows-2016
       nox-session: ci-test-onedir
@@ -1951,9 +1052,8 @@ jobs:
       pkg-type: NSIS
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   windows-2016-msi-pkg-tests:
@@ -1961,9 +1061,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-windows-pkgs-onedir
-      - windows-2016-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-windows.yml
     with:
       distro-slug: windows-2016
       nox-session: ci-test-onedir
@@ -1973,9 +1073,8 @@ jobs:
       pkg-type: MSI
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   windows-2019-nsis-pkg-tests:
@@ -1983,9 +1082,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-windows-pkgs-onedir
-      - windows-2019-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-windows.yml
     with:
       distro-slug: windows-2019
       nox-session: ci-test-onedir
@@ -1995,9 +1094,8 @@ jobs:
       pkg-type: NSIS
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   windows-2019-msi-pkg-tests:
@@ -2005,9 +1103,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-windows-pkgs-onedir
-      - windows-2019-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-windows.yml
     with:
       distro-slug: windows-2019
       nox-session: ci-test-onedir
@@ -2017,9 +1115,8 @@ jobs:
       pkg-type: MSI
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   windows-2022-nsis-pkg-tests:
@@ -2027,9 +1124,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-windows-pkgs-onedir
-      - windows-2022-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-windows.yml
     with:
       distro-slug: windows-2022
       nox-session: ci-test-onedir
@@ -2039,9 +1136,8 @@ jobs:
       pkg-type: NSIS
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   windows-2022-msi-pkg-tests:
@@ -2049,9 +1145,9 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test-pkg'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - build-windows-pkgs-onedir
-      - windows-2022-ci-deps
-    uses: ./.github/workflows/test-packages-action.yml
+      - build-pkgs-onedir
+      - build-ci-deps
+    uses: ./.github/workflows/test-packages-action-windows.yml
     with:
       distro-slug: windows-2022
       nox-session: ci-test-onedir
@@ -2061,9 +1157,8 @@ jobs:
       pkg-type: MSI
       nox-version: 2022.8.7
       python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
 
   windows-2016:
@@ -2071,8 +1166,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - windows-2016-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-windows.yml
     with:
       distro-slug: windows-2016
       nox-session: ci-test-onedir
@@ -2082,9 +1177,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2093,8 +1187,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - windows-2019-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-windows.yml
     with:
       distro-slug: windows-2019
       nox-session: ci-test-onedir
@@ -2104,9 +1198,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2115,8 +1208,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - windows-2022-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-windows.yml
     with:
       distro-slug: windows-2022
       nox-session: ci-test-onedir
@@ -2126,9 +1219,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2137,20 +1229,20 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
     needs:
       - prepare-workflow
-      - macos-12-ci-deps
+      - build-ci-deps
     uses: ./.github/workflows/test-action-macos.yml
     with:
       distro-slug: macos-12
+      runner: macos-12
       nox-session: ci-test-onedir
-      platform: darwin
+      platform: macos
       arch: x86_64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2159,54 +1251,54 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
     needs:
       - prepare-workflow
-      - macos-13-ci-deps
+      - build-ci-deps
     uses: ./.github/workflows/test-action-macos.yml
     with:
       distro-slug: macos-13
+      runner: macos-13
       nox-session: ci-test-onedir
-      platform: darwin
+      platform: macos
       arch: x86_64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
-  macos-13-xlarge:
+  macos-13-arm64:
     name: macOS 13 Arm64 Test
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['github-hosted'] }}
     needs:
       - prepare-workflow
-      - macos-13-xlarge-ci-deps
+      - build-ci-deps
     uses: ./.github/workflows/test-action-macos.yml
     with:
-      distro-slug: macos-13-xlarge
+      distro-slug: macos-13-arm64
+      runner: macos-13-xlarge
       nox-session: ci-test-onedir
-      platform: darwin
-      arch: aarch64
+      platform: macos
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
-  almalinux-8:
-    name: Alma Linux 8 Test
+  rockylinux-8:
+    name: Rocky Linux 8 Test
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - almalinux-8-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
-      distro-slug: almalinux-8
+      distro-slug: rockylinux-8
       nox-session: ci-test-onedir
       platform: linux
       arch: x86_64
@@ -2214,21 +1306,41 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
-  almalinux-9:
-    name: Alma Linux 9 Test
+  rockylinux-8-arm64:
+    name: Rocky Linux 8 Arm64 Test
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - almalinux-9-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
-      distro-slug: almalinux-9
+      distro-slug: rockylinux-8-arm64
+      nox-session: ci-test-onedir
+      platform: linux
+      arch: arm64
+      nox-version: 2022.8.7
+      gh-actions-python-version: "3.10"
+      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
+      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
+      skip-code-coverage: true
+      workflow-slug: staging
+      default-timeout: 180
+
+  rockylinux-9:
+    name: Rocky Linux 9 Test
+    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
+    needs:
+      - prepare-workflow
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
+    with:
+      distro-slug: rockylinux-9
       nox-session: ci-test-onedir
       platform: linux
       arch: x86_64
@@ -2236,9 +1348,29 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
+      workflow-slug: staging
+      default-timeout: 180
+
+  rockylinux-9-arm64:
+    name: Rocky Linux 9 Arm64 Test
+    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
+    needs:
+      - prepare-workflow
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
+    with:
+      distro-slug: rockylinux-9-arm64
+      nox-session: ci-test-onedir
+      platform: linux
+      arch: arm64
+      nox-version: 2022.8.7
+      gh-actions-python-version: "3.10"
+      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
+      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
+      skip-code-coverage: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2247,8 +1379,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - amazonlinux-2-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: amazonlinux-2
       nox-session: ci-test-onedir
@@ -2258,9 +1390,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2269,20 +1400,19 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - amazonlinux-2-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: amazonlinux-2-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2291,8 +1421,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - amazonlinux-2023-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: amazonlinux-2023
       nox-session: ci-test-onedir
@@ -2302,9 +1432,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2313,20 +1442,19 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - amazonlinux-2023-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: amazonlinux-2023-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2335,8 +1463,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - archlinux-lts-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: archlinux-lts
       nox-session: ci-test-onedir
@@ -2346,9 +1474,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2357,8 +1484,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - centos-7-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: centos-7
       nox-session: ci-test-onedir
@@ -2368,75 +1495,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
-      workflow-slug: staging
-      default-timeout: 180
-
-  centosstream-8:
-    name: CentOS Stream 8 Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - centosstream-8-ci-deps
-    uses: ./.github/workflows/test-action.yml
-    with:
-      distro-slug: centosstream-8
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      gh-actions-python-version: "3.10"
-      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
-      workflow-slug: staging
-      default-timeout: 180
-
-  centosstream-9:
-    name: CentOS Stream 9 Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - centosstream-9-ci-deps
-    uses: ./.github/workflows/test-action.yml
-    with:
-      distro-slug: centosstream-9
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      gh-actions-python-version: "3.10"
-      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
-      workflow-slug: staging
-      default-timeout: 180
-
-  debian-10:
-    name: Debian 10 Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - debian-10-ci-deps
-    uses: ./.github/workflows/test-action.yml
-    with:
-      distro-slug: debian-10
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      gh-actions-python-version: "3.10"
-      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2445,8 +1505,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - debian-11-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: debian-11
       nox-session: ci-test-onedir
@@ -2456,9 +1516,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2467,20 +1526,19 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - debian-11-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: debian-11-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2489,8 +1547,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - debian-12-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: debian-12
       nox-session: ci-test-onedir
@@ -2500,9 +1558,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2511,32 +1568,31 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - debian-12-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: debian-12-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
-  fedora-37:
-    name: Fedora 37 Test
+  fedora-39:
+    name: Fedora 39 Test
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - fedora-37-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
-      distro-slug: fedora-37
+      distro-slug: fedora-39
       nox-session: ci-test-onedir
       platform: linux
       arch: x86_64
@@ -2544,31 +1600,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
-      workflow-slug: staging
-      default-timeout: 180
-
-  fedora-38:
-    name: Fedora 38 Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - fedora-38-ci-deps
-    uses: ./.github/workflows/test-action.yml
-    with:
-      distro-slug: fedora-38
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      gh-actions-python-version: "3.10"
-      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2577,8 +1610,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - opensuse-15-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: opensuse-15
       nox-session: ci-test-onedir
@@ -2588,53 +1621,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
-      workflow-slug: staging
-      default-timeout: 180
-
-  photonos-3:
-    name: Photon OS 3 Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - photonos-3-ci-deps
-    uses: ./.github/workflows/test-action.yml
-    with:
-      distro-slug: photonos-3
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: x86_64
-      nox-version: 2022.8.7
-      gh-actions-python-version: "3.10"
-      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
-      workflow-slug: staging
-      default-timeout: 180
-
-  photonos-3-arm64:
-    name: Photon OS 3 Arm64 Test
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
-    needs:
-      - prepare-workflow
-      - photonos-3-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
-    with:
-      distro-slug: photonos-3-arm64
-      nox-session: ci-test-onedir
-      platform: linux
-      arch: aarch64
-      nox-version: 2022.8.7
-      gh-actions-python-version: "3.10"
-      testrun: ${{ needs.prepare-workflow.outputs.testrun }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
-      skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2643,8 +1631,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - photonos-4-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: photonos-4
       nox-session: ci-test-onedir
@@ -2654,9 +1642,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
       fips: true
@@ -2666,20 +1653,19 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - photonos-4-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: photonos-4-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
       fips: true
@@ -2689,8 +1675,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - photonos-5-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: photonos-5
       nox-session: ci-test-onedir
@@ -2700,9 +1686,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
       fips: true
@@ -2712,20 +1697,19 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - photonos-5-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: photonos-5-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
       fips: true
@@ -2735,8 +1719,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - ubuntu-2004-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: ubuntu-20.04
       nox-session: ci-test-onedir
@@ -2746,9 +1730,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2757,20 +1740,19 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - ubuntu-2004-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: ubuntu-20.04-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2779,8 +1761,8 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - ubuntu-2204-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: ubuntu-22.04
       nox-session: ci-test-onedir
@@ -2790,9 +1772,8 @@ jobs:
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2801,20 +1782,19 @@ jobs:
     if: ${{ fromJSON(needs.prepare-workflow.outputs.jobs)['test'] && fromJSON(needs.prepare-workflow.outputs.runners)['self-hosted'] }}
     needs:
       - prepare-workflow
-      - ubuntu-2204-arm64-ci-deps
-    uses: ./.github/workflows/test-action.yml
+      - build-ci-deps
+    uses: ./.github/workflows/test-action-linux.yml
     with:
       distro-slug: ubuntu-22.04-arm64
       nox-session: ci-test-onedir
       platform: linux
-      arch: aarch64
+      arch: arm64
       nox-version: 2022.8.7
       gh-actions-python-version: "3.10"
       testrun: ${{ needs.prepare-workflow.outputs.testrun }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       skip-code-coverage: true
-      skip-junit-reports: true
       workflow-slug: staging
       default-timeout: 180
 
@@ -2825,9 +1805,12 @@ jobs:
       - self-hosted
       - linux
       - repo-staging
+    env:
+      USE_S3_CACHE: 'true'
     needs:
       - prepare-workflow
       - build-source-tarball
+      - build-pkgs-src
     strategy:
       fail-fast: false
       matrix:
@@ -2849,7 +1832,7 @@ jobs:
           echo "SPB_ENVIRONMENT=$SPB_ENVIRONMENT" >> "$GITHUB_ENV"
 
       - name: Download Source Tarball
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}.tar.gz
           path: artifacts/pkgs/incoming
@@ -2899,7 +1882,7 @@ jobs:
           find artifacts/pkgs/repo -type f -print -exec cp {} artifacts/src \;
 
       - name: Upload Standalone Repository As An Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-staging-src-repo
           path: |
@@ -2925,29 +1908,23 @@ jobs:
       - self-hosted
       - linux
       - repo-staging
+    env:
+      USE_S3_CACHE: 'true'
     needs:
       - prepare-workflow
-      - build-deb-pkgs-onedir
+      - build-pkgs-onedir
     strategy:
       fail-fast: false
       matrix:
         include:
           - pkg-type: deb
             distro: debian
-            version: "10"
-            arch: x86_64
-          - pkg-type: deb
-            distro: debian
-            version: "10"
-            arch: aarch64
-          - pkg-type: deb
-            distro: debian
             version: "11"
             arch: x86_64
           - pkg-type: deb
             distro: debian
             version: "11"
-            arch: aarch64
+            arch: arm64
           - pkg-type: deb
             distro: debian
             version: "12"
@@ -2955,7 +1932,7 @@ jobs:
           - pkg-type: deb
             distro: debian
             version: "12"
-            arch: aarch64
+            arch: arm64
           - pkg-type: deb
             distro: ubuntu
             version: "20.04"
@@ -2963,7 +1940,7 @@ jobs:
           - pkg-type: deb
             distro: ubuntu
             version: "20.04"
-            arch: aarch64
+            arch: arm64
           - pkg-type: deb
             distro: ubuntu
             version: "22.04"
@@ -2971,7 +1948,15 @@ jobs:
           - pkg-type: deb
             distro: ubuntu
             version: "22.04"
-            arch: aarch64
+            arch: arm64
+          - pkg-type: deb
+            distro: ubuntu
+            version: "23.04"
+            arch: x86_64
+          - pkg-type: deb
+            distro: ubuntu
+            version: "23.04"
+            arch: arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -2993,7 +1978,7 @@ jobs:
           echo "SPB_ENVIRONMENT=$SPB_ENVIRONMENT" >> "$GITHUB_ENV"
 
       - name: Download DEB Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-${{ matrix.arch }}-deb
           path: artifacts/pkgs/incoming
@@ -3054,9 +2039,11 @@ jobs:
       - self-hosted
       - linux
       - repo-staging
+    env:
+      USE_S3_CACHE: 'true'
     needs:
       - prepare-workflow
-      - build-rpm-pkgs-onedir
+      - build-pkgs-onedir
     strategy:
       fail-fast: false
       matrix:
@@ -3086,6 +2073,42 @@ jobs:
             version: "2023"
             arch: aarch64
           - pkg-type: rpm
+            distro: fedora
+            version: "39"
+            arch: x86_64
+          - pkg-type: rpm
+            distro: fedora
+            version: "39"
+            arch: arm64
+          - pkg-type: rpm
+            distro: fedora
+            version: "39"
+            arch: aarch64
+          - pkg-type: rpm
+            distro: photon
+            version: "4"
+            arch: x86_64
+          - pkg-type: rpm
+            distro: photon
+            version: "4"
+            arch: arm64
+          - pkg-type: rpm
+            distro: photon
+            version: "4"
+            arch: aarch64
+          - pkg-type: rpm
+            distro: photon
+            version: "5"
+            arch: x86_64
+          - pkg-type: rpm
+            distro: photon
+            version: "5"
+            arch: arm64
+          - pkg-type: rpm
+            distro: photon
+            version: "5"
+            arch: aarch64
+          - pkg-type: rpm
             distro: redhat
             version: "7"
             arch: x86_64
@@ -3120,78 +2143,6 @@ jobs:
           - pkg-type: rpm
             distro: redhat
             version: "9"
-            arch: aarch64
-          - pkg-type: rpm
-            distro: fedora
-            version: "36"
-            arch: x86_64
-          - pkg-type: rpm
-            distro: fedora
-            version: "36"
-            arch: arm64
-          - pkg-type: rpm
-            distro: fedora
-            version: "36"
-            arch: aarch64
-          - pkg-type: rpm
-            distro: fedora
-            version: "37"
-            arch: x86_64
-          - pkg-type: rpm
-            distro: fedora
-            version: "37"
-            arch: arm64
-          - pkg-type: rpm
-            distro: fedora
-            version: "37"
-            arch: aarch64
-          - pkg-type: rpm
-            distro: fedora
-            version: "38"
-            arch: x86_64
-          - pkg-type: rpm
-            distro: fedora
-            version: "38"
-            arch: arm64
-          - pkg-type: rpm
-            distro: fedora
-            version: "38"
-            arch: aarch64
-          - pkg-type: rpm
-            distro: photon
-            version: "3"
-            arch: x86_64
-          - pkg-type: rpm
-            distro: photon
-            version: "3"
-            arch: arm64
-          - pkg-type: rpm
-            distro: photon
-            version: "3"
-            arch: aarch64
-          - pkg-type: rpm
-            distro: photon
-            version: "4"
-            arch: x86_64
-          - pkg-type: rpm
-            distro: photon
-            version: "4"
-            arch: arm64
-          - pkg-type: rpm
-            distro: photon
-            version: "4"
-            arch: aarch64
-          - pkg-type: rpm
-            distro: photon
-            version: "5"
-            arch: x86_64
-          - pkg-type: rpm
-            distro: photon
-            version: "5"
-            arch: arm64
-          - pkg-type: rpm
-            distro: photon
-            version: "5"
             arch: aarch64
 
     steps:
@@ -3214,9 +2165,9 @@ jobs:
           echo "SPB_ENVIRONMENT=$SPB_ENVIRONMENT" >> "$GITHUB_ENV"
 
       - name: Download RPM Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-${{ matrix.arch == 'arm64' && 'aarch64' || matrix.arch }}-rpm
+          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-${{ matrix.arch == 'aarch64' && 'arm64' || matrix.arch }}-rpm
           path: artifacts/pkgs/incoming
 
       - name: Setup GnuPG
@@ -3280,9 +2231,11 @@ jobs:
       - self-hosted
       - linux
       - repo-staging
+    env:
+      USE_S3_CACHE: 'true'
     needs:
       - prepare-workflow
-      - build-windows-pkgs-onedir
+      - build-pkgs-onedir
     strategy:
       fail-fast: false
       matrix:
@@ -3304,25 +2257,25 @@ jobs:
           echo "SPB_ENVIRONMENT=$SPB_ENVIRONMENT" >> "$GITHUB_ENV"
 
       - name: Download Windows NSIS x86 Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-x86-NSIS
           path: artifacts/pkgs/incoming
 
       - name: Download Windows MSI x86 Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-x86-MSI
           path: artifacts/pkgs/incoming
 
       - name: Download Windows NSIS amd64 Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-amd64-NSIS
           path: artifacts/pkgs/incoming
 
       - name: Download Windows MSI amd64 Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-amd64-MSI
           path: artifacts/pkgs/incoming
@@ -3382,9 +2335,11 @@ jobs:
       - self-hosted
       - linux
       - repo-staging
+    env:
+      USE_S3_CACHE: 'true'
     needs:
       - prepare-workflow
-      - build-macos-pkgs-onedir
+      - build-pkgs-onedir
     strategy:
       fail-fast: false
       matrix:
@@ -3406,15 +2361,15 @@ jobs:
           echo "SPB_ENVIRONMENT=$SPB_ENVIRONMENT" >> "$GITHUB_ENV"
 
       - name: Download macOS x86_64 Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-x86_64-macos
           path: artifacts/pkgs/incoming
 
       - name: Download macOS Arch64 Packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-aarch64-macos
+          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-arm64-macos
           path: artifacts/pkgs/incoming
 
       - name: Setup GnuPG
@@ -3472,11 +2427,11 @@ jobs:
       - self-hosted
       - linux
       - repo-staging
+    env:
+      USE_S3_CACHE: 'true'
     needs:
       - prepare-workflow
-      - build-salt-onedir-linux
-      - build-salt-onedir-macos
-      - build-salt-onedir-windows
+      - build-salt-onedir
     strategy:
       fail-fast: false
       matrix:
@@ -3498,43 +2453,49 @@ jobs:
           echo "SPB_ENVIRONMENT=$SPB_ENVIRONMENT" >> "$GITHUB_ENV"
 
       - name: Download Linux x86_64 Onedir Archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-linux-x86_64.tar.xz
           path: artifacts/pkgs/incoming
 
-      - name: Download Linux aarch64 Onedir Archive
-        uses: actions/download-artifact@v3
+      - name: Download Linux arm64 Onedir Archive
+        uses: actions/download-artifact@v4
         with:
-          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-linux-aarch64.tar.xz
+          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-linux-arm64.tar.xz
           path: artifacts/pkgs/incoming
 
       - name: Download macOS x86_64 Onedir Archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-darwin-x86_64.tar.xz
+          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-macos-x86_64.tar.xz
+          path: artifacts/pkgs/incoming
+
+      - name: Download macOS arm64 Onedir Archive
+        uses: actions/download-artifact@v4
+        with:
+          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-macos-arm64.tar.xz
           path: artifacts/pkgs/incoming
 
       - name: Download Windows amd64 Onedir Archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-windows-amd64.tar.xz
           path: artifacts/pkgs/incoming
 
       - name: Download Windows amd64 Onedir Archive(zip)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-windows-amd64.zip
           path: artifacts/pkgs/incoming
 
       - name: Download Windows x86 Onedir Archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-windows-x86.tar.xz
           path: artifacts/pkgs/incoming
 
       - name: Download Windows amd64 Onedir Archive(zip)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-onedir-windows-x86.zip
           path: artifacts/pkgs/incoming
@@ -3597,6 +2558,7 @@ jobs:
     environment: staging
     needs:
       - prepare-workflow
+      - build-docs
       - build-src-repo
       - build-deb-repo
       - build-rpm-repo
@@ -3605,6 +2567,7 @@ jobs:
       - build-onedir-repo
 
     steps:
+
       - uses: actions/checkout@v4
 
       - name: Get Salt Project GitHub Actions Bot Environment
@@ -3620,6 +2583,8 @@ jobs:
 
       - name: Download Repository Artifact
         uses: actions/download-artifact@v3
+        # This needs to be actions/download-artifact@v3 because we upload multiple artifacts
+        # under the same name something that actions/upload-artifact@v4 does not do.
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-staging-repo
           path: repo/
@@ -3666,25 +2631,25 @@ jobs:
           cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}
 
       - name: Download Release Patch
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}.patch
           path: artifacts/release
 
       - name: Download Source Repository
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-staging-src-repo
           path: artifacts/release
 
       - name: Download Release Documentation (HTML)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-docs-html.tar.xz
           path: artifacts/release
 
       - name: Download Release Documentation (ePub)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: Salt-${{ needs.prepare-workflow.outputs.salt-version }}.epub
           path: artifacts/release
@@ -3698,7 +2663,7 @@ jobs:
           tools release upload-artifacts ${{ needs.prepare-workflow.outputs.salt-version }} artifacts/release
 
       - name: Upload PyPi Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pypi-artifacts
           path: |
@@ -3713,50 +2678,12 @@ jobs:
     needs:
       - prepare-workflow
       - publish-repositories
-      - almalinux-8-arm64-ci-deps
-      - almalinux-8-ci-deps
-      - almalinux-9-arm64-ci-deps
-      - almalinux-9-ci-deps
-      - amazonlinux-2-arm64-ci-deps
-      - amazonlinux-2-ci-deps
-      - amazonlinux-2023-arm64-ci-deps
-      - amazonlinux-2023-ci-deps
-      - centos-7-arm64-ci-deps
-      - centos-7-ci-deps
-      - centosstream-8-arm64-ci-deps
-      - centosstream-8-ci-deps
-      - centosstream-9-arm64-ci-deps
-      - centosstream-9-ci-deps
-      - debian-10-ci-deps
-      - debian-11-arm64-ci-deps
-      - debian-11-ci-deps
-      - debian-12-arm64-ci-deps
-      - debian-12-ci-deps
-      - fedora-37-arm64-ci-deps
-      - fedora-37-ci-deps
-      - fedora-38-arm64-ci-deps
-      - fedora-38-ci-deps
-      - macos-12-ci-deps
-      - macos-13-ci-deps
-      - macos-13-xlarge-ci-deps
-      - photonos-3-arm64-ci-deps
-      - photonos-3-ci-deps
-      - photonos-4-arm64-ci-deps
-      - photonos-4-ci-deps
-      - photonos-5-arm64-ci-deps
-      - photonos-5-ci-deps
-      - ubuntu-2004-arm64-ci-deps
-      - ubuntu-2004-ci-deps
-      - ubuntu-2204-arm64-ci-deps
-      - ubuntu-2204-ci-deps
-      - windows-2022-ci-deps
-      - build-salt-onedir-linux
-      - build-salt-onedir-macos
-      - build-salt-onedir-windows
+      - build-ci-deps
+      - build-salt-onedir
     uses: ./.github/workflows/test-package-downloads-action.yml
     with:
       nox-session: ci-test-onedir
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.13
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.14
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       environment: staging
       nox-version: 2022.8.7
@@ -3771,73 +2698,29 @@ jobs:
     needs:
       - prepare-workflow
       - upload-release-artifacts
-      - windows-2016-ci-deps
-      - windows-2019-ci-deps
-      - windows-2022-ci-deps
-      - macos-12-ci-deps
-      - macos-13-ci-deps
-      - macos-13-xlarge-ci-deps
-      - almalinux-8-ci-deps
-      - almalinux-8-arm64-ci-deps
-      - almalinux-9-ci-deps
-      - almalinux-9-arm64-ci-deps
-      - amazonlinux-2-ci-deps
-      - amazonlinux-2-arm64-ci-deps
-      - amazonlinux-2023-ci-deps
-      - amazonlinux-2023-arm64-ci-deps
-      - archlinux-lts-ci-deps
-      - centos-7-ci-deps
-      - centos-7-arm64-ci-deps
-      - centosstream-8-ci-deps
-      - centosstream-8-arm64-ci-deps
-      - centosstream-9-ci-deps
-      - centosstream-9-arm64-ci-deps
-      - debian-10-ci-deps
-      - debian-11-ci-deps
-      - debian-11-arm64-ci-deps
-      - debian-12-ci-deps
-      - debian-12-arm64-ci-deps
-      - fedora-37-ci-deps
-      - fedora-37-arm64-ci-deps
-      - fedora-38-ci-deps
-      - fedora-38-arm64-ci-deps
-      - opensuse-15-ci-deps
-      - photonos-3-ci-deps
-      - photonos-3-arm64-ci-deps
-      - photonos-4-ci-deps
-      - photonos-4-arm64-ci-deps
-      - photonos-5-ci-deps
-      - photonos-5-arm64-ci-deps
-      - ubuntu-2004-ci-deps
-      - ubuntu-2004-arm64-ci-deps
-      - ubuntu-2204-ci-deps
-      - ubuntu-2204-arm64-ci-deps
+      - build-ci-deps
       - windows-2016
       - windows-2019
       - windows-2022
       - macos-12
       - macos-13
-      - macos-13-xlarge
-      - almalinux-8
-      - almalinux-9
+      - macos-13-arm64
+      - rockylinux-8
+      - rockylinux-8-arm64
+      - rockylinux-9
+      - rockylinux-9-arm64
       - amazonlinux-2
       - amazonlinux-2-arm64
       - amazonlinux-2023
       - amazonlinux-2023-arm64
       - archlinux-lts
       - centos-7
-      - centosstream-8
-      - centosstream-9
-      - debian-10
       - debian-11
       - debian-11-arm64
       - debian-12
       - debian-12-arm64
-      - fedora-37
-      - fedora-38
+      - fedora-39
       - opensuse-15
-      - photonos-3
-      - photonos-3-arm64
       - photonos-4
       - photonos-4-arm64
       - photonos-5
@@ -3846,21 +2729,19 @@ jobs:
       - ubuntu-2004-arm64
       - ubuntu-2204
       - ubuntu-2204-arm64
+      - rockylinux-8-pkg-tests
+      - rockylinux-8-arm64-pkg-tests
+      - rockylinux-9-pkg-tests
+      - rockylinux-9-arm64-pkg-tests
       - amazonlinux-2-pkg-tests
       - amazonlinux-2-arm64-pkg-tests
       - amazonlinux-2023-pkg-tests
       - amazonlinux-2023-arm64-pkg-tests
       - centos-7-pkg-tests
-      - centosstream-8-pkg-tests
-      - centosstream-9-pkg-tests
-      - centosstream-9-arm64-pkg-tests
-      - debian-10-pkg-tests
       - debian-11-pkg-tests
       - debian-11-arm64-pkg-tests
       - debian-12-pkg-tests
       - debian-12-arm64-pkg-tests
-      - photonos-3-pkg-tests
-      - photonos-3-arm64-pkg-tests
       - photonos-4-pkg-tests
       - photonos-4-arm64-pkg-tests
       - photonos-5-pkg-tests
@@ -3871,7 +2752,7 @@ jobs:
       - ubuntu-2204-arm64-pkg-tests
       - macos-12-pkg-tests
       - macos-13-pkg-tests
-      - macos-13-xlarge-pkg-tests
+      - macos-13-arm64-pkg-tests
       - windows-2016-nsis-pkg-tests
       - windows-2016-msi-pkg-tests
       - windows-2019-nsis-pkg-tests
@@ -3917,7 +2798,7 @@ jobs:
           echo "twine-password=$TWINE_PASSWORD" >> "${GITHUB_OUTPUT}"
 
       - name: Download PyPi Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: pypi-artifacts
           path: artifacts/release
@@ -3933,23 +2814,16 @@ jobs:
     # on a pull request instead of requiring all
     name: Set the ${{ github.workflow }} Pipeline Exit Status
     if: always()
-    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "linux", "x86_64"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     needs:
       - check-requirements
       - prepare-workflow
       - pre-commit
       - lint
       - build-docs
-      - build-deps-onedir-linux
-      - build-deps-onedir-windows
-      - build-deps-onedir-macos
-      - build-salt-onedir-linux
-      - build-salt-onedir-windows
-      - build-salt-onedir-macos
-      - build-rpm-pkgs-src
-      - build-deb-pkgs-src
-      - build-windows-pkgs-src
-      - build-macos-pkgs-src
+      - build-deps-onedir
+      - build-salt-onedir
+      - build-pkgs-src
       - publish-repositories
       - upload-release-artifacts
       - pkg-download-tests

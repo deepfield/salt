@@ -7,6 +7,260 @@ Versions are `MAJOR.PATCH`.
 
 # Changelog
 
+## 3006.8 (2024-04-29)
+
+
+### Removed
+
+- Removed deprecated code scheduled to be removed on 2024-01-01:
+
+  * ``TemporaryLoggingHandler`` and ``QueueHandler`` in ``salt/_logging/handlers.py``
+  * All of the ``salt/log`` package.
+  * The ``salt/modules/cassandra_mod.py`` module.
+  * The ``salt/returners/cassandra_return.py`` returner.
+  * The ``salt/returners/django_return.py`` returner. [#66147](https://github.com/saltstack/salt/issues/66147)
+
+
+### Deprecated
+
+- Drop Fedora 37 and Fedora 38 support [#65860](https://github.com/saltstack/salt/issues/65860)
+- Drop CentOS Stream 8 and 9 from CI/CD [#66104](https://github.com/saltstack/salt/issues/66104)
+- Drop Photon OS 3 support [#66105](https://github.com/saltstack/salt/issues/66105)
+- The ``salt.utils.psutil_compat`` module has been deprecated and will be removed in Salt 3008. Please use the ``psutil`` module directly. [#66139](https://github.com/saltstack/salt/issues/66139)
+
+
+### Fixed
+
+- ``user.add`` on Windows now allows you to add user names that contain all
+  numeric characters [#53363](https://github.com/saltstack/salt/issues/53363)
+- Fix an issue with the win_system module detecting established connections on
+  non-Windows systems. Uses psutils instead of parsing the return of netstat [#60508](https://github.com/saltstack/salt/issues/60508)
+- pkg.refresh_db on Windows now honors saltenv [#61807](https://github.com/saltstack/salt/issues/61807)
+- Fixed an issue with adding new machine policies and applying those same
+  policies in the same state by adding a ``refresh_cache`` option to the
+  ``lgpo.set`` state. [#62734](https://github.com/saltstack/salt/issues/62734)
+- file.managed correctly handles file path with '#' [#63060](https://github.com/saltstack/salt/issues/63060)
+- Fix master ip detection when DNS records change [#63654](https://github.com/saltstack/salt/issues/63654)
+- Fix user and group management on Windows to handle the Everyone group [#63667](https://github.com/saltstack/salt/issues/63667)
+- Fixes an issue in pkg.refresh_db on Windows where new package definition
+  files were not being picked up on the first run [#63848](https://github.com/saltstack/salt/issues/63848)
+- Display a proper error when pki commands fail in the win_pki module [#64933](https://github.com/saltstack/salt/issues/64933)
+- Prevent full system upgrade on single package install for Arch Linux [#65200](https://github.com/saltstack/salt/issues/65200)
+- When using s3fs, if files are deleted from the bucket, they were not deleted in
+  the master or minion local cache, which could lead to unexpected file copies or
+  even state applications. This change makes the local cache consistent with the
+  remote bucket by deleting files locally that are deleted from the bucket.
+
+  **NOTE** this could lead to **breakage** on your affected systems if it was
+  inadvertently depending on previously deleted files. [#65611](https://github.com/saltstack/salt/issues/65611)
+- Fixed an issue with file.directory state where paths would be modified in test
+  mode if backupname is used. [#66049](https://github.com/saltstack/salt/issues/66049)
+- Execution modules have access to regular fileclient durring pillar rendering. [#66124](https://github.com/saltstack/salt/issues/66124)
+- Fixed a issue with server channel where a minion's public key
+  would be rejected if it contained a final newline character. [#66126](https://github.com/saltstack/salt/issues/66126)
+- Fix content type backwards compatablity with http proxy post requests in the http utils module. [#66127](https://github.com/saltstack/salt/issues/66127)
+- Fix systemctl with "try-restart" instead of "retry-restart" within the RPM spec, properly restarting upgraded services [#66143](https://github.com/saltstack/salt/issues/66143)
+- Auto discovery of ssh, scp and ssh-keygen binaries. [#66205](https://github.com/saltstack/salt/issues/66205)
+- Add leading slash to salt helper file paths as per dh_links requirement [#66280](https://github.com/saltstack/salt/issues/66280)
+- Fixed x509.certificate_managed - ca_server did not return a certificate [#66284](https://github.com/saltstack/salt/issues/66284)
+- removed log line that did nothing. [#66289](https://github.com/saltstack/salt/issues/66289)
+- Chocolatey: Make sure the return dictionary from ``chocolatey.version``
+  contains lowercase keys [#66290](https://github.com/saltstack/salt/issues/66290)
+- fix cacheing inline pillar, by not rendering inline pillar during cache save function. [#66292](https://github.com/saltstack/salt/issues/66292)
+- The file module correctly perserves file permissions on link target. [#66400](https://github.com/saltstack/salt/issues/66400)
+- Upgrade relenv to 0.16.0 and python to 3.10.14 [#66402](https://github.com/saltstack/salt/issues/66402)
+- backport the fix from #66164 to fix #65703. use OrderedDict to fix bad indexing. [#66705](https://github.com/saltstack/salt/issues/66705)
+
+
+### Added
+
+- Add Fedora 39 support [#65859](https://github.com/saltstack/salt/issues/65859)
+
+
+### Security
+
+- Upgrade to `cryptography==42.0.5` due to a few security issues:
+
+  * https://github.com/advisories/GHSA-9v9h-cgj8-h64p
+  * https://github.com/advisories/GHSA-3ww4-gg4f-jr7f
+  * https://github.com/advisories/GHSA-6vqw-3v5j-54x4 [#66141](https://github.com/saltstack/salt/issues/66141)
+- Bump to `idna==3.7` due to https://github.com/advisories/GHSA-jjg7-2v4v-x38h [#66377](https://github.com/saltstack/salt/issues/66377)
+- Bump to `aiohttp==3.9.4` due to https://github.com/advisories/GHSA-7gpw-8wmc-pm8g [#66411](https://github.com/saltstack/salt/issues/66411)
+
+
+## 3006.7 (2024-02-20)
+
+
+### Deprecated
+
+- Deprecate and stop using ``salt.features`` [#65951](https://github.com/saltstack/salt/issues/65951)
+
+
+### Changed
+
+- Change module search path priority, so Salt extensions can be overridden by syncable modules and module_dirs. You can switch back to the old logic by setting features.enable_deprecated_module_search_path_priority to true, but it will be removed in Salt 3008. [#65938](https://github.com/saltstack/salt/issues/65938)
+
+
+### Fixed
+
+- Fix an issue with mac_shadow that was causing a command execution error when
+  retrieving values that were not yet set. For example, retrieving last login
+  before the user had logged in. [#34658](https://github.com/saltstack/salt/issues/34658)
+- Fixed an issue when keys didn't match because of line endings [#52289](https://github.com/saltstack/salt/issues/52289)
+- Corrected encoding of credentials for use with Artifactory [#63063](https://github.com/saltstack/salt/issues/63063)
+- Use `send_multipart` instead of `send` when sending multipart message. [#65018](https://github.com/saltstack/salt/issues/65018)
+- Fix an issue where the minion would crash on Windows if some of the grains
+  failed to resolve [#65154](https://github.com/saltstack/salt/issues/65154)
+- Fix issue with openscap when the error was outside the expected scope. It now
+  returns failed with the error code and the error [#65193](https://github.com/saltstack/salt/issues/65193)
+- Upgrade relenv to 0.15.0 to fix namespaced packages installed by salt-pip [#65433](https://github.com/saltstack/salt/issues/65433)
+- Fix regression of fileclient re-use when rendering sls pillars and states [#65450](https://github.com/saltstack/salt/issues/65450)
+- Fixes the s3fs backend computing the local cache's files with the wrong hash type [#65589](https://github.com/saltstack/salt/issues/65589)
+- Fixed Salt-SSH pillar rendering and state rendering with nested SSH calls when called via saltutil.cmd or in an orchestration [#65670](https://github.com/saltstack/salt/issues/65670)
+- Fix boto execution module loading [#65691](https://github.com/saltstack/salt/issues/65691)
+- Removed PR 65185 changes since incomplete solution [#65692](https://github.com/saltstack/salt/issues/65692)
+- catch only ret/ events not all returning events. [#65727](https://github.com/saltstack/salt/issues/65727)
+- Fix nonsensical time in fileclient timeout error. [#65752](https://github.com/saltstack/salt/issues/65752)
+- Fixes an issue when reading/modifying ini files that contain unicode characters [#65777](https://github.com/saltstack/salt/issues/65777)
+- added https proxy to the list of proxies so that requests knows what to do with https based proxies [#65824](https://github.com/saltstack/salt/issues/65824)
+- Ensure minion channels are closed on any master connection error. [#65932](https://github.com/saltstack/salt/issues/65932)
+- Fixed issue where Salt can't find libcrypto when pip installed from a cloned repo [#65954](https://github.com/saltstack/salt/issues/65954)
+- Fix RPM package systemd scriptlets to make RPM packages more universal [#65987](https://github.com/saltstack/salt/issues/65987)
+- Fixed an issue where fileclient requests during Pillar rendering cause
+  fileserver backends to be needlessly refreshed. [#65990](https://github.com/saltstack/salt/issues/65990)
+- Fix exceptions being set on futures that are already done in ZeroMQ transport [#66006](https://github.com/saltstack/salt/issues/66006)
+- Use hmac compare_digest method in hashutil module to mitigate potential timing attacks [#66041](https://github.com/saltstack/salt/issues/66041)
+- Fix request channel default timeout regression. In 3006.5 it was changed from
+  60 to 30 and is now set back to 60 by default. [#66061](https://github.com/saltstack/salt/issues/66061)
+- Upgrade relenv to 0.15.1 to fix debugpy support. [#66094](https://github.com/saltstack/salt/issues/66094)
+
+
+### Security
+
+- Bump to ``cryptography==42.0.0`` due to https://github.com/advisories/GHSA-3ww4-gg4f-jr7f
+
+  In the process, we were also required to update to ``pyOpenSSL==24.0.0`` [#66004](https://github.com/saltstack/salt/issues/66004)
+- Bump to `cryptography==42.0.3` due to https://github.com/advisories/GHSA-3ww4-gg4f-jr7f [#66090](https://github.com/saltstack/salt/issues/66090)
+
+
+## 3006.6 (2024-01-26)
+
+
+### Changed
+
+- Salt no longer time bombs user installations on code using `salt.utils.versions.warn_until_date` [#665924](https://github.com/saltstack/salt/issues/665924)
+
+
+### Fixed
+
+- Fix un-closed transport in tornado netapi [#65759](https://github.com/saltstack/salt/issues/65759)
+
+
+### Security
+
+- CVE-2024-22231 Prevent directory traversal when creating syndic cache directory on the master
+  CVE-2024-22232 Prevent directory traversal attacks in the master's serve_file method.
+  These vulerablities were discovered and reported by:
+  Yudi Zhao(Huawei Nebula Security Lab),Chenwei Jiang(Huawei Nebula Security Lab) [#565](https://github.com/saltstack/salt/issues/565)
+- Update some requirements which had some security issues:
+
+  * Bump to `pycryptodome==3.19.1` and `pycryptodomex==3.19.1` due to https://github.com/advisories/GHSA-j225-cvw7-qrx7
+  * Bump to `gitpython==3.1.41` due to https://github.com/advisories/GHSA-2mqj-m65w-jghx
+  * Bump to `jinja2==3.1.3` due to https://github.com/advisories/GHSA-h5c8-rqwp-cp95 [#65830](https://github.com/saltstack/salt/issues/65830)
+
+
+## 3006.5 (2023-12-12)
+Salt 3005.5 (2024-01-19)
+========================
+
+Security
+--------
+
+- Fix CVE-2024-22231 Prevent directory traversal when creating syndic cache directory on the master.
+- Fix CVE-2024-22232 Prevent directory traversal attacks in the master's serve_file method.
+
+These vulnerablities were discovered and reported by:
+Yudi Zhao(Huawei Nebula Security Lab),Chenwei Jiang(Huawei Nebula Security Lab) (#565)
+
+
+Salt v3005.4 (2023-10-16)
+=========================
+
+
+### Removed
+
+- Tech Debt - support for pysss removed due to functionality addition in Python 3.3 [#65029](https://github.com/saltstack/salt/issues/65029)
+
+
+### Fixed
+
+- Improved error message when state arguments are accidentally passed as a string [#38098](https://github.com/saltstack/salt/issues/38098)
+- Allow `pip.install` to create a log file that is passed in if the parent directory is writeable [#44722](https://github.com/saltstack/salt/issues/44722)
+- Fixed merging of complex pillar overrides with salt-ssh states [#59802](https://github.com/saltstack/salt/issues/59802)
+- Fixed gpg pillar rendering with salt-ssh [#60002](https://github.com/saltstack/salt/issues/60002)
+- Made salt-ssh states not re-render pillars unnecessarily [#62230](https://github.com/saltstack/salt/issues/62230)
+- Made Salt maintain options in Debian package repo definitions [#64130](https://github.com/saltstack/salt/issues/64130)
+- Migrated all [`invoke`](https://www.pyinvoke.org/) tasks to [`python-tools-scripts`](https://github.com/s0undt3ch/python-tools-scripts).
+
+  * `tasks/docs.py` -> `tools/precommit/docs.py`
+  * `tasks/docstrings.py` -> `tools/precommit/docstrings.py`
+  * `tasks/loader.py` -> `tools/precommit/loader.py`
+  * `tasks/filemap.py` -> `tools/precommit/filemap.py` [#64374](https://github.com/saltstack/salt/issues/64374)
+- Fix salt user login shell path in Debian packages [#64377](https://github.com/saltstack/salt/issues/64377)
+- Fill out lsb_distrib_xxxx (best estimate) grains if problems with retrieving lsb_release data [#64473](https://github.com/saltstack/salt/issues/64473)
+- Fixed an issue in the ``file.directory`` state where the ``children_only`` keyword
+  argument was not being respected. [#64497](https://github.com/saltstack/salt/issues/64497)
+- Move salt.ufw to correct location /etc/ufw/applications.d/ [#64572](https://github.com/saltstack/salt/issues/64572)
+- Fixed salt-ssh stacktrace when retcode is not an integer [#64575](https://github.com/saltstack/salt/issues/64575)
+- Fixed SSH shell seldomly fails to report any exit code [#64588](https://github.com/saltstack/salt/issues/64588)
+- Fixed some issues in x509_v2 execution module private key functions [#64597](https://github.com/saltstack/salt/issues/64597)
+- Fixed grp.getgrall() in utils/user.py causing performance issues [#64888](https://github.com/saltstack/salt/issues/64888)
+- Fix user.list_groups omits remote groups via sssd, etc. [#64953](https://github.com/saltstack/salt/issues/64953)
+- Ensure sync from _grains occurs before attempting pillar compilation in case custom grain used in pillar file [#65027](https://github.com/saltstack/salt/issues/65027)
+- Moved gitfs locks to salt working dir to avoid lock wipes [#65086](https://github.com/saltstack/salt/issues/65086)
+- Only attempt to create a keys directory when `--gen-keys` is passed to the `salt-key` CLI [#65093](https://github.com/saltstack/salt/issues/65093)
+- Fix nonce verification, request server replies do not stomp on eachother. [#65114](https://github.com/saltstack/salt/issues/65114)
+- speed up yumpkg list_pkgs by not requiring digest or signature verification on lookup. [#65152](https://github.com/saltstack/salt/issues/65152)
+- Fix pkg.latest failing on windows for winrepo packages where the package is already up to date [#65165](https://github.com/saltstack/salt/issues/65165)
+- Ensure __kwarg__ is preserved when checking for kwargs.  This change affects proxy minions when used with Deltaproxy, which had kwargs popped when targeting multiple minions id. [#65179](https://github.com/saltstack/salt/issues/65179)
+- Fixes traceback when state id is an int in a reactor SLS file. [#65210](https://github.com/saltstack/salt/issues/65210)
+- Install logrotate config as /etc/logrotate.d/salt-common for Debian packages
+  Remove broken /etc/logrotate.d/salt directory from 3006.3 if it exists. [#65231](https://github.com/saltstack/salt/issues/65231)
+- Use ``sha256`` as the default ``hash_type``. It has been the default since Salt v2016.9 [#65287](https://github.com/saltstack/salt/issues/65287)
+- Preserve ownership on log rotation [#65288](https://github.com/saltstack/salt/issues/65288)
+- Ensure that the correct value of jid_inclue is passed if the argument is included in the passed keyword arguments. [#65302](https://github.com/saltstack/salt/issues/65302)
+- Uprade relenv to 0.14.2
+   - Update openssl to address CVE-2023-5363.
+   - Fix bug in openssl setup when openssl binary can't be found.
+   - Add M1 mac support. [#65316](https://github.com/saltstack/salt/issues/65316)
+- Fix regex for filespec adding/deleting fcontext policy in selinux [#65340](https://github.com/saltstack/salt/issues/65340)
+- Ensure CLI options take priority over Saltfile options [#65358](https://github.com/saltstack/salt/issues/65358)
+- Test mode for state function `saltmod.wheel` no longer set's `result` to `(None,)` [#65372](https://github.com/saltstack/salt/issues/65372)
+- Client only process events which tag conforms to an event return. [#65400](https://github.com/saltstack/salt/issues/65400)
+- Fixes an issue setting user or machine policy on Windows when the Group Policy
+  directory is missing [#65411](https://github.com/saltstack/salt/issues/65411)
+- Fix regression in file module which was not re-using a file client. [#65450](https://github.com/saltstack/salt/issues/65450)
+- pip.installed state will now properly fail when a specified user does not exists [#65458](https://github.com/saltstack/salt/issues/65458)
+- Publish channel connect callback method properly closes it's request channel. [#65464](https://github.com/saltstack/salt/issues/65464)
+- Ensured the pillar in SSH wrapper modules is the same as the one used in template rendering when overrides are passed [#65483](https://github.com/saltstack/salt/issues/65483)
+- Fix file.comment ignore_missing not working with multiline char [#65501](https://github.com/saltstack/salt/issues/65501)
+- Warn when an un-closed transport client is being garbage collected. [#65554](https://github.com/saltstack/salt/issues/65554)
+- Only generate the HMAC's for ``libssl.so.1.1`` and ``libcrypto.so.1.1`` if those files exist. [#65581](https://github.com/saltstack/salt/issues/65581)
+- Fixed an issue where Salt Cloud would fail if it could not delete lingering
+  PAexec binaries [#65584](https://github.com/saltstack/salt/issues/65584)
+
+
+### Added
+
+- Added Salt support for Debian 12 [#64223](https://github.com/saltstack/salt/issues/64223)
+- Added Salt support for Amazon Linux 2023 [#64455](https://github.com/saltstack/salt/issues/64455)
+
+
+### Security
+
+- Bump to `cryptography==41.0.4` due to https://github.com/advisories/GHSA-v8gr-m533-ghj9 [#65268](https://github.com/saltstack/salt/issues/65268)
+- Bump to `cryptography==41.0.7` due to https://github.com/advisories/GHSA-jfhm-5ghh-2f97 [#65643](https://github.com/saltstack/salt/issues/65643)
+
 
 ## 3006.4 (2023-10-16)
 

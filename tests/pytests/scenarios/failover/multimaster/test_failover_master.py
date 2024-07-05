@@ -28,8 +28,8 @@ def test_pki(salt_mm_failover_master_1, salt_mm_failover_master_2, caplog):
     mm_master_2_addr = salt_mm_failover_master_2.config["interface"]
     config_overrides = {
         "master": [
-            "{}:{}".format(mm_master_1_addr, mm_master_1_port),
-            "{}:{}".format(mm_master_2_addr, mm_master_2_port),
+            f"{mm_master_1_addr}:{mm_master_1_port}",
+            f"{mm_master_2_addr}:{mm_master_2_port}",
         ],
         "publish_port": salt_mm_failover_master_1.config["publish_port"],
         "master_type": "failover",
@@ -94,7 +94,7 @@ def test_failover_to_second_master(
     event_patterns = [
         (
             salt_mm_failover_master_2.id,
-            "salt/minion/{}/start".format(salt_mm_failover_minion_1.id),
+            f"salt/minion/{salt_mm_failover_minion_1.id}/start",
         )
     ]
 
@@ -159,10 +159,6 @@ def test_minions_alive_with_no_master(
     """
     Make sure the minions stay alive after all masters have stopped.
     """
-    if grains["os_family"] == "Debian" and grains["osmajorrelease"] == 9:
-        pytest.skip(
-            "Skipping on Debian 9 until flaky issues resolved. See issue #61749"
-        )
     start_time = time.time()
     with salt_mm_failover_master_1.stopped():
         with salt_mm_failover_master_2.stopped():
@@ -184,19 +180,19 @@ def test_minions_alive_with_no_master(
     event_patterns = [
         (
             salt_mm_failover_master_1.id,
-            "salt/minion/{}/start".format(salt_mm_failover_minion_1.id),
+            f"salt/minion/{salt_mm_failover_minion_1.id}/start",
         ),
         (
             salt_mm_failover_master_1.id,
-            "salt/minion/{}/start".format(salt_mm_failover_minion_2.id),
+            f"salt/minion/{salt_mm_failover_minion_2.id}/start",
         ),
         (
             salt_mm_failover_master_2.id,
-            "salt/minion/{}/start".format(salt_mm_failover_minion_1.id),
+            f"salt/minion/{salt_mm_failover_minion_1.id}/start",
         ),
         (
             salt_mm_failover_master_2.id,
-            "salt/minion/{}/start".format(salt_mm_failover_minion_2.id),
+            f"salt/minion/{salt_mm_failover_minion_2.id}/start",
         ),
     ]
     events = event_listener.wait_for_events(
@@ -208,7 +204,7 @@ def test_minions_alive_with_no_master(
     assert len(events.matches) >= 2
 
     expected_tags = {
-        "salt/minion/{}/start".format(salt_mm_failover_minion_1.id),
-        "salt/minion/{}/start".format(salt_mm_failover_minion_2.id),
+        f"salt/minion/{salt_mm_failover_minion_1.id}/start",
+        f"salt/minion/{salt_mm_failover_minion_2.id}/start",
     }
     assert {event.tag for event in events} == expected_tags

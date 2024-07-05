@@ -1,6 +1,7 @@
 """
 Set up the version of Salt
 """
+
 import argparse
 import operator
 import os
@@ -58,7 +59,7 @@ class SaltVersionsInfo(type):
     _previous_release = None
     _next_release = None
 
-    # pylint: disable=bad-whitespace,multiple-spaces-before-operator
+    # pylint: disable=bad-whitespace
     # ----- Please refrain from fixing whitespace ---------------------------------->
     # The idea is to keep this readable.
     # -------------------------------------------------------------------------------
@@ -184,7 +185,7 @@ class SaltVersionsInfo(type):
     # <---- Please refrain from fixing whitespace -----------------------------------
     # The idea is to keep this readable.
     # -------------------------------------------------------------------------------
-    # pylint: enable=bad-whitespace,multiple-spaces-before-operator
+    # pylint: enable=bad-whitespace
     # fmt: on
 
     @classmethod
@@ -862,7 +863,7 @@ def versions_information(include_salt_cloud=False, include_extensions=True):
     Report the versions of dependent software.
     """
     py_info = [
-        ("Python", sys.version.rsplit("\n")[0].strip()),
+        ("Python", sys.version.rsplit("\n", maxsplit=1)[0].strip()),
     ]
     salt_info = list(salt_information())
     lib_info = list(dependency_information(include_salt_cloud))
@@ -927,6 +928,7 @@ def _parser():
     parser.add_argument(
         "--next-release", help="Return the next release", action="store_true"
     )
+    parser.add_argument("--parse", help="Parse the passed string as a salt version")
     # When pip installing we pass in other args to this script.
     # This allows us to catch those args but not use them
     parser.add_argument("unknown", nargs=argparse.REMAINDER)
@@ -937,5 +939,11 @@ if __name__ == "__main__":
     args = _parser()
     if args.next_release:
         print(__saltstack_version__.next_release())
+    elif args.parse:
+        try:
+            print(SaltStackVersion.parse(args.parse))
+        except Exception as exc:  # pylint: disable=broad-except
+            print(f"Failed to parse '{args.parse}' as a salt version: {exc}")
+            sys.exit(1)
     else:
         print(__version__)

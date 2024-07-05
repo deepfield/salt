@@ -4,6 +4,7 @@ noxfile
 
 Nox configuration script
 """
+
 # pylint: disable=resource-leakage,3rd-party-module-not-gated
 
 import contextlib
@@ -62,6 +63,7 @@ if PRINT_SYSTEM_INFO is None:
     PRINT_SYSTEM_INFO = CI_RUN
 else:
     PRINT_SYSTEM_INFO = PRINT_SYSTEM_INFO == "1"
+PRINT_SYSTEM_INFO_ONLY = os.environ.get("PRINT_SYSTEM_INFO_ONLY", "0") == "1"
 SKIP_REQUIREMENTS_INSTALL = os.environ.get("SKIP_REQUIREMENTS_INSTALL", "0") == "1"
 EXTRA_REQUIREMENTS_INSTALL = os.environ.get("EXTRA_REQUIREMENTS_INSTALL")
 COVERAGE_REQUIREMENT = os.environ.get("COVERAGE_REQUIREMENT")
@@ -105,7 +107,7 @@ def session_warn(session, message):
     try:
         session.warn(message)
     except AttributeError:
-        session.log("WARNING: {}".format(message))
+        session.log(f"WARNING: {message}")
 
 
 def session_run_always(session, *command, **kwargs):
@@ -130,15 +132,15 @@ def session_run_always(session, *command, **kwargs):
 
 def find_session_runner(session, name, python_version, onedir=False, **kwargs):
     if onedir:
-        name += "-onedir-{}".format(ONEDIR_PYTHON_PATH)
+        name += f"-onedir-{ONEDIR_PYTHON_PATH}"
     else:
-        name += "-{}".format(python_version)
+        name += f"-{python_version}"
     for s, _ in session._runner.manifest.list_all_sessions():
         if name not in s.signatures:
             continue
         for signature in s.signatures:
             for key, value in kwargs.items():
-                param = "{}={!r}".format(key, value)
+                param = f"{key}={value!r}"
                 if param not in signature:
                     break
             else:
@@ -209,7 +211,7 @@ def _get_pip_requirements_file(session, crypto=None, requirements_type="ci"):
         )
         if os.path.exists(_requirements_file):
             return _requirements_file
-        session.error("Could not find a windows requirements file for {}".format(pydir))
+        session.error(f"Could not find a windows requirements file for {pydir}")
     elif IS_DARWIN:
         if crypto is None:
             _requirements_file = os.path.join(
@@ -222,7 +224,7 @@ def _get_pip_requirements_file(session, crypto=None, requirements_type="ci"):
         )
         if os.path.exists(_requirements_file):
             return _requirements_file
-        session.error("Could not find a darwin requirements file for {}".format(pydir))
+        session.error(f"Could not find a darwin requirements file for {pydir}")
     elif IS_FREEBSD:
         if crypto is None:
             _requirements_file = os.path.join(
@@ -235,7 +237,7 @@ def _get_pip_requirements_file(session, crypto=None, requirements_type="ci"):
         )
         if os.path.exists(_requirements_file):
             return _requirements_file
-        session.error("Could not find a freebsd requirements file for {}".format(pydir))
+        session.error(f"Could not find a freebsd requirements file for {pydir}")
     else:
         if crypto is None:
             _requirements_file = os.path.join(
@@ -248,7 +250,7 @@ def _get_pip_requirements_file(session, crypto=None, requirements_type="ci"):
         )
         if os.path.exists(_requirements_file):
             return _requirements_file
-        session.error("Could not find a linux requirements file for {}".format(pydir))
+        session.error(f"Could not find a linux requirements file for {pydir}")
 
 
 def _upgrade_pip_setuptools_and_wheel(session, upgrade=True):
@@ -463,7 +465,7 @@ def _report_coverage(
         xml_coverage_file = COVERAGE_OUTPUT_DIR.relative_to(REPO_ROOT) / "salt.xml"
         html_coverage_dir = COVERAGE_OUTPUT_DIR.relative_to(REPO_ROOT) / "html" / "salt"
         cmd_args = [
-            "--omit=tests/*,pkg/tests/*",
+            "--omit=tests/*,tests/pytests/pkg/*",
             "--include=salt/*",
         ]
 
@@ -475,7 +477,7 @@ def _report_coverage(
         )
         cmd_args = [
             "--omit=salt/*",
-            "--include=tests/*,pkg/tests/*",
+            "--include=tests/*,tests/pytests/pkg/*",
         ]
     else:
         json_coverage_file = (
@@ -484,7 +486,7 @@ def _report_coverage(
         xml_coverage_file = COVERAGE_OUTPUT_DIR.relative_to(REPO_ROOT) / "coverage.xml"
         html_coverage_dir = COVERAGE_OUTPUT_DIR.relative_to(REPO_ROOT) / "html" / "full"
         cmd_args = [
-            "--include=salt/*,tests/*,pkg/tests/*",
+            "--include=salt/*,tests/*,tests/pytests/pkg/*",
         ]
 
     if cli_report:
@@ -567,7 +569,7 @@ def test_parametrized(session, coverage, transport, crypto):
             session.install(*install_command, silent=PIP_INSTALL_SILENT)
 
     cmd_args = [
-        "--transport={}".format(transport),
+        f"--transport={transport}",
     ] + session.posargs
     _pytest(session, coverage=coverage, cmd_args=cmd_args)
 
@@ -1012,8 +1014,13 @@ def _pytest(session, coverage, cmd_args, env=None, on_rerun=False):
         if arg == "--log-file" or arg.startswith("--log-file="):
             break
     else:
-        args.append("--log-file={}".format(RUNTESTS_LOGFILE))
+        args.append(f"--log-file={RUNTESTS_LOGFILE}")
     args.extend(cmd_args)
+
+    if PRINT_SYSTEM_INFO_ONLY and "--sys-info-and-exit" not in args:
+        args.append("--sys-info-and-exit")
+        session.run("python", "-m", "pytest", *args, env=env)
+        return
 
     if PRINT_SYSTEM_INFO and "--sysinfo" not in args:
         args.append("--sysinfo")
@@ -1056,6 +1063,9 @@ def _ci_test(session, transport, onedir=False):
     if onedir:
         env["ONEDIR_TESTRUN"] = "1"
     chunks = {
+        "pkg": [
+            "tests/pytests/pkg",
+        ],
         "unit": [
             "tests/unit",
             "tests/pytests/unit",
@@ -1063,7 +1073,9 @@ def _ci_test(session, transport, onedir=False):
         "functional": [
             "tests/pytests/functional",
         ],
-        "scenarios": ["tests/pytests/scenarios"],
+        "scenarios": [
+            "tests/pytests/scenarios",
+        ],
     }
 
     test_group_number = os.environ.get("TEST_GROUP") or "1"
@@ -1218,14 +1230,29 @@ def coverage_report(session):
 def decompress_dependencies(session):
     if not session.posargs:
         session.error(
-            "Please pass the distro-slug to run tests against. "
-            "Check cicd/images.yml for what's available."
+            "The 'decompress-dependencies' session target needs "
+            "two arguments, '<platform> <arch>'."
         )
-    distro_slug = session.posargs.pop(0)
-    if "windows" in distro_slug:
-        nox_dependencies_tarball = f"nox.{distro_slug}.tar.gz"
+    try:
+        platform = session.posargs.pop(0)
+        arch = session.posargs.pop(0)
+        if session.posargs:
+            session.error(
+                "The 'decompress-dependencies' session target only accepts "
+                "two arguments, '<platform> <arch>'."
+            )
+    except IndexError:
+        session.error(
+            "The 'decompress-dependencies' session target needs "
+            "two arguments, '<platform> <arch>'."
+        )
+    if platform == "windows":
+        extension = "tar.gz"
+        scripts_dir_name = "Scripts"
     else:
-        nox_dependencies_tarball = f"nox.{distro_slug}.tar.xz"
+        extension = "tar.xz"
+        scripts_dir_name = "bin"
+    nox_dependencies_tarball = f"nox.{platform}.{arch}.{extension}"
     nox_dependencies_tarball_path = REPO_ROOT / nox_dependencies_tarball
     if not nox_dependencies_tarball_path.exists():
         session.error(
@@ -1239,10 +1266,7 @@ def decompress_dependencies(session):
 
     session.log("Finding broken 'python' symlinks under '.nox/' ...")
     for dirname in os.scandir(REPO_ROOT / ".nox"):
-        if "windows" not in distro_slug:
-            scan_path = REPO_ROOT.joinpath(".nox", dirname, "bin")
-        else:
-            scan_path = REPO_ROOT.joinpath(".nox", dirname, "Scripts")
+        scan_path = REPO_ROOT.joinpath(".nox", dirname, scripts_dir_name)
         script_paths = {str(p): p for p in os.scandir(scan_path)}
         fixed_shebang = f"#!{scan_path / 'python'}"
         for key in sorted(script_paths):
@@ -1273,11 +1297,11 @@ def decompress_dependencies(session):
                 continue
             if not path.is_file():
                 continue
-            if "windows" not in distro_slug:
+            if platform != "windows":
                 # Let's try to fix shebang's
                 try:
                     fpath = pathlib.Path(path)
-                    contents = fpath.read_text().splitlines()
+                    contents = fpath.read_text(encoding="utf-8").splitlines()
                     if (
                         contents[0].startswith("#!")
                         and contents[0].endswith("python")
@@ -1287,7 +1311,9 @@ def decompress_dependencies(session):
                             "Fixing broken shebang in %r",
                             str(fpath.relative_to(REPO_ROOT)),
                         )
-                        fpath.write_text("\n".join([fixed_shebang] + contents[1:]))
+                        fpath.write_text(
+                            "\n".join([fixed_shebang] + contents[1:]), encoding="utf-8"
+                        )
                 except UnicodeDecodeError:
                     pass
 
@@ -1296,14 +1322,27 @@ def decompress_dependencies(session):
 def compress_dependencies(session):
     if not session.posargs:
         session.error(
-            "Please pass the distro-slug to run tests against. "
-            "Check cicd/images.yml for what's available."
+            "The 'compress-dependencies' session target needs "
+            "two arguments, '<platform> <arch>'."
         )
-    distro_slug = session.posargs.pop(0)
-    if IS_WINDOWS:
-        nox_dependencies_tarball = f"nox.{distro_slug}.tar.gz"
+    try:
+        platform = session.posargs.pop(0)
+        arch = session.posargs.pop(0)
+        if session.posargs:
+            session.error(
+                "The 'compress-dependencies' session target only accepts "
+                "two arguments, '<platform> <arch>'."
+            )
+    except IndexError:
+        session.error(
+            "The 'compress-dependencies' session target needs "
+            "two arguments, '<platform> <arch>'."
+        )
+    if platform == "windows":
+        extension = "tar.gz"
     else:
-        nox_dependencies_tarball = f"nox.{distro_slug}.tar.xz"
+        extension = "tar.xz"
+    nox_dependencies_tarball = f"nox.{platform}.{arch}.{extension}"
     nox_dependencies_tarball_path = REPO_ROOT / nox_dependencies_tarball
     if nox_dependencies_tarball_path.exists():
         session_warn(
@@ -1431,48 +1470,26 @@ class Tee:
         return self._first.fileno()
 
 
-def _lint(
-    session, rcfile, flags, paths, tee_output=True, upgrade_setuptools_and_pip=True
-):
+def _lint(session, rcfile, flags, paths, upgrade_setuptools_and_pip=True):
     if _upgrade_pip_setuptools_and_wheel(session, upgrade=upgrade_setuptools_and_pip):
-        requirements_file = os.path.join(
+        base_requirements_file = os.path.join(
+            "requirements", "static", "ci", _get_pydir(session), "linux.txt"
+        )
+        lint_requirements_file = os.path.join(
             "requirements", "static", "ci", _get_pydir(session), "lint.txt"
         )
-        install_command = ["--progress-bar=off", "-r", requirements_file]
+        install_command = [
+            "--progress-bar=off",
+            "-r",
+            base_requirements_file,
+            "-r",
+            lint_requirements_file,
+        ]
         session.install(*install_command, silent=PIP_INSTALL_SILENT)
 
-    if tee_output:
-        session.run("pylint", "--version")
-        pylint_report_path = os.environ.get("PYLINT_REPORT")
-
-    cmd_args = ["pylint", "--rcfile={}".format(rcfile)] + list(flags) + list(paths)
-
+    cmd_args = ["pylint", f"--rcfile={rcfile}"] + list(flags) + list(paths)
     cmd_kwargs = {"env": {"PYTHONUNBUFFERED": "1"}}
-
-    if tee_output:
-        stdout = tempfile.TemporaryFile(mode="w+b")
-        cmd_kwargs["stdout"] = Tee(stdout, sys.__stdout__)
-
-    lint_failed = False
-    try:
-        session.run(*cmd_args, **cmd_kwargs)
-    except CommandFailed:
-        lint_failed = True
-        raise
-    finally:
-        if tee_output:
-            stdout.seek(0)
-            contents = stdout.read()
-            if contents:
-                contents = contents.decode("utf-8")
-                sys.stdout.write(contents)
-                sys.stdout.flush()
-                if pylint_report_path:
-                    # Write report
-                    with open(pylint_report_path, "w") as wfh:
-                        wfh.write(contents)
-                    session.log("Report file written to %r", pylint_report_path)
-            stdout.close()
+    session.run(*cmd_args, **cmd_kwargs)
 
 
 def _lint_pre_commit(session, rcfile, flags, paths):
@@ -1491,26 +1508,17 @@ def _lint_pre_commit(session, rcfile, flags, paths):
     from nox.virtualenv import VirtualEnv
 
     # Let's patch nox to make it run inside the pre-commit virtualenv
-    try:
-        session._runner.venv = VirtualEnv(  # pylint: disable=unexpected-keyword-arg
-            os.environ["VIRTUAL_ENV"],
-            interpreter=session._runner.func.python,
-            reuse_existing=True,
-            venv=True,
-        )
-    except TypeError:
-        # This is still nox-py2
-        session._runner.venv = VirtualEnv(
-            os.environ["VIRTUAL_ENV"],
-            interpreter=session._runner.func.python,
-            reuse_existing=True,
-        )
+    session._runner.venv = VirtualEnv(
+        os.environ["VIRTUAL_ENV"],
+        interpreter=session._runner.func.python,
+        reuse_existing=True,
+        venv=True,
+    )
     _lint(
         session,
         rcfile,
         flags,
         paths,
-        tee_output=False,
         upgrade_setuptools_and_pip=False,
     )
 
@@ -1518,30 +1526,30 @@ def _lint_pre_commit(session, rcfile, flags, paths):
 @nox.session(python="3")
 def lint(session):
     """
-    Run PyLint against Salt and it's test suite. Set PYLINT_REPORT to a path to capture output.
+    Run PyLint against Salt and it's test suite.
     """
-    session.notify("lint-salt-{}".format(session.python))
-    session.notify("lint-tests-{}".format(session.python))
+    session.notify(f"lint-salt-{session.python}")
+    session.notify(f"lint-tests-{session.python}")
 
 
 @nox.session(python="3", name="lint-salt")
 def lint_salt(session):
     """
-    Run PyLint against Salt. Set PYLINT_REPORT to a path to capture output.
+    Run PyLint against Salt.
     """
     flags = ["--disable=I"]
     if session.posargs:
         paths = session.posargs
     else:
         # TBD replace paths entries when implement pyproject.toml
-        paths = ["setup.py", "noxfile.py", "salt/"]
+        paths = ["setup.py", "noxfile.py", "salt/", "tools/"]
     _lint(session, ".pylintrc", flags, paths)
 
 
 @nox.session(python="3", name="lint-tests")
 def lint_tests(session):
     """
-    Run PyLint against Salt and it's test suite. Set PYLINT_REPORT to a path to capture output.
+    Run PyLint against Salt and it's test suite.
     """
     flags = ["--disable=I"]
     if session.posargs:
@@ -1554,20 +1562,20 @@ def lint_tests(session):
 @nox.session(python=False, name="lint-salt-pre-commit")
 def lint_salt_pre_commit(session):
     """
-    Run PyLint against Salt. Set PYLINT_REPORT to a path to capture output.
+    Run PyLint against Salt.
     """
     flags = ["--disable=I"]
     if session.posargs:
         paths = session.posargs
     else:
-        paths = ["setup.py", "noxfile.py", "salt/"]
+        paths = ["setup.py", "noxfile.py", "salt/", "tools/"]
     _lint_pre_commit(session, ".pylintrc", flags, paths)
 
 
 @nox.session(python=False, name="lint-tests-pre-commit")
 def lint_tests_pre_commit(session):
     """
-    Run PyLint against Salt and it's test suite. Set PYLINT_REPORT to a path to capture output.
+    Run PyLint against Salt and it's test suite.
     """
     flags = ["--disable=I"]
     if session.posargs:
@@ -1585,7 +1593,7 @@ def docs(session, compress, update, clean):
     """
     Build Salt's Documentation
     """
-    session.notify("docs-html-{}(compress={})".format(session.python, compress))
+    session.notify(f"docs-html-{session.python}(compress={compress})")
     session.notify(
         find_session_runner(
             session,
@@ -1705,7 +1713,7 @@ class Recompress:
         d_targz = tempd.joinpath(targz.name)
         with tarfile.open(d_tar, "w|") as wfile:
             with tarfile.open(targz, "r:gz") as rfile:
-                rfile.extractall(d_src)
+                rfile.extractall(d_src)  # nosec
                 extracted_dir = next(pathlib.Path(d_src).iterdir())
                 for name in sorted(extracted_dir.rglob("*")):
                     wfile.add(
@@ -1811,31 +1819,41 @@ def ci_test_onedir_pkgs(session):
             )
         )
 
+    common_pytest_args = [
+        "--color=yes",
+        "--sys-stats",
+        "--run-destructive",
+        f"--output-columns={os.environ.get('OUTPUT_COLUMNS') or 120}",
+        "--pkg-system-service",
+    ]
+
     chunks = {
-        "install": ["pkg/tests/"],
+        "install": [
+            "tests/pytests/pkg/",
+        ],
         "upgrade": [
             "--upgrade",
             "--no-uninstall",
-            "pkg/tests/upgrade/",
+            "tests/pytests/pkg/upgrade/",
         ],
         "upgrade-classic": [
             "--upgrade",
             "--no-uninstall",
-            "pkg/tests/upgrade/",
+            "tests/pytests/pkg/upgrade/",
         ],
         "downgrade": [
             "--downgrade",
             "--no-uninstall",
-            "pkg/tests/downgrade/",
+            "tests/pytests/pkg/downgrade/",
         ],
         "downgrade-classic": [
             "--downgrade",
             "--no-uninstall",
-            "pkg/tests/downgrade/",
+            "tests/pytests/pkg/downgrade/",
         ],
         "download-pkgs": [
             "--download-pkgs",
-            "pkg/tests/download/",
+            "tests/pytests/pkg/download/",
         ],
     }
 
@@ -1846,6 +1864,11 @@ def ci_test_onedir_pkgs(session):
         chunk = session.posargs.pop(0)
 
     cmd_args = chunks[chunk]
+    for arg in session.posargs:
+        if arg.startswith("tests/pytests/pkg/"):
+            # The user is passing test paths
+            cmd_args.pop()
+            break
 
     if IS_LINUX:
         # Fetch the toolchain
@@ -1863,10 +1886,9 @@ def ci_test_onedir_pkgs(session):
         cmd_args.append("--classic")
 
     pytest_args = (
-        cmd_args[:]
+        common_pytest_args[:]
+        + cmd_args[:]
         + [
-            "-c",
-            str(REPO_ROOT / "pkg-tests-pytest.ini"),
             f"--junitxml=artifacts/xml-unittests-output/test-results-{chunk}.xml",
             f"--log-file=artifacts/logs/runtests-{chunk}.log",
         ]
@@ -1875,6 +1897,9 @@ def ci_test_onedir_pkgs(session):
     try:
         _pytest(session, coverage=False, cmd_args=pytest_args, env=env)
     except CommandFailed:
+        if os.environ.get("RERUN_FAILURES", "0") == "0":
+            # Don't rerun on failures
+            return
 
         # Don't print the system information, not the test selection on reruns
         global PRINT_TEST_SELECTION
@@ -1883,10 +1908,9 @@ def ci_test_onedir_pkgs(session):
         PRINT_SYSTEM_INFO = False
 
         pytest_args = (
-            cmd_args[:]
+            common_pytest_args[:]
+            + cmd_args[:]
             + [
-                "-c",
-                str(REPO_ROOT / "pkg-tests-pytest.ini"),
                 f"--junitxml=artifacts/xml-unittests-output/test-results-{chunk}-rerun.xml",
                 f"--log-file=artifacts/logs/runtests-{chunk}-rerun.log",
                 "--lf",
@@ -1904,13 +1928,12 @@ def ci_test_onedir_pkgs(session):
     if chunk not in ("install", "download-pkgs"):
         cmd_args = chunks["install"]
         pytest_args = (
-            cmd_args[:]
+            common_pytest_args[:]
+            + cmd_args[:]
             + [
-                "-c",
-                str(REPO_ROOT / "pkg-tests-pytest.ini"),
                 "--no-install",
-                f"--junitxml=artifacts/xml-unittests-output/test-results-install.xml",
-                f"--log-file=artifacts/logs/runtests-install.log",
+                "--junitxml=artifacts/xml-unittests-output/test-results-install.xml",
+                "--log-file=artifacts/logs/runtests-install.log",
             ]
             + session.posargs
         )
@@ -1923,13 +1946,12 @@ def ci_test_onedir_pkgs(session):
         except CommandFailed:
             cmd_args = chunks["install"]
             pytest_args = (
-                cmd_args[:]
+                common_pytest_args[:]
+                + cmd_args[:]
                 + [
-                    "-c",
-                    str(REPO_ROOT / "pkg-tests-pytest.ini"),
                     "--no-install",
-                    f"--junitxml=artifacts/xml-unittests-output/test-results-install-rerun.xml",
-                    f"--log-file=artifacts/logs/runtests-install-rerun.log",
+                    "--junitxml=artifacts/xml-unittests-output/test-results-install-rerun.xml",
+                    "--log-file=artifacts/logs/runtests-install-rerun.log",
                     "--lf",
                 ]
                 + session.posargs

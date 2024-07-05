@@ -222,6 +222,7 @@ import salt.utils.functools
 import salt.utils.json
 import salt.utils.path
 from salt.exceptions import CommandExecutionError, SaltInvocationError
+from salt.loader.dunder import __file_client__
 from salt.state import HighState
 
 __docformat__ = "restructuredtext en"
@@ -325,6 +326,18 @@ def __virtual__():
     return (False, "Could not import docker module, is docker-py installed?")
 
 
+def _file_client():
+    """
+    Return a file client
+
+    If the __file_client__ context is set return it, otherwize create a new
+    file client using __opts__.
+    """
+    if __file_client__:
+        return __file_client__.value()
+    return salt.fileclient.get_file_client(__opts__)
+
+
 class DockerJSONDecoder(json.JSONDecoder):
     def decode(self, s, _w=None):
         objs = []
@@ -386,7 +399,6 @@ def _get_client(timeout=NOTSET, **kwargs):
                     docker_machine_tls["ClientKeyPath"],
                 ),
                 ca_cert=docker_machine_tls["CaCertPath"],
-                assert_hostname=False,
                 verify=True,
             )
         except Exception as exc:  # pylint: disable=broad-except
@@ -677,9 +689,9 @@ def _client_wrapper(attr, *args, **kwargs):
             raise
     except docker.errors.DockerException as exc:
         # More general docker exception (catches InvalidVersion, etc.)
-        raise CommandExecutionError(exc.__str__())
+        raise CommandExecutionError(str(exc))
     except Exception as exc:  # pylint: disable=broad-except
-        err = exc.__str__()
+        err = str(exc)
     else:
         return ret
 
@@ -1320,7 +1332,10 @@ def compare_networks(first, second, ignore="Name,Id,Created,Containers"):
                 if bool(subval1) is bool(subval2) is False:
                     continue
                 elif subkey == "Config":
-                    kvsort = lambda x: (list(x.keys()), list(x.values()))
+
+                    def kvsort(x):
+                        return (list(x.keys()), list(x.values()))
+
                     config1 = sorted(val1["Config"], key=kvsort)
                     config2 = sorted(val2.get("Config", []), key=kvsort)
                     if config1 != config2:
@@ -3299,7 +3314,7 @@ def create(
         except CommandExecutionError as exc:
             raise CommandExecutionError(
                 "Failed to start container after creation",
-                info={"response": response, "error": exc.__str__()},
+                info={"response": response, "error": str(exc)},
             )
         else:
             response["Started"] = True
@@ -3489,7 +3504,7 @@ def run_container(
                             f"Failed to auto_remove container: {rm_exc}"
                         )
                 # Raise original exception with additional info
-                raise CommandExecutionError(exc.__str__(), info=exc_info)
+                raise CommandExecutionError(str(exc), info=exc_info)
 
         # Start the container
         output = []
@@ -3541,7 +3556,7 @@ def run_container(
             # it to other_errors as a fallback.
             exc_info.setdefault("other_errors", []).append(exc.info)
         # Re-raise with all of the available additional info
-        raise CommandExecutionError(exc.__str__(), info=exc_info)
+        raise CommandExecutionError(str(exc), info=exc_info)
 
     return ret
 
@@ -4273,7 +4288,7 @@ def dangling(prune=False, force=False):
         try:
             ret.setdefault(image, {})["Removed"] = rmi(image, force=force)
         except Exception as exc:  # pylint: disable=broad-except
-            err = exc.__str__()
+            err = str(exc)
             log.error(err)
             ret.setdefault(image, {})["Comment"] = err
             ret[image]["Removed"] = False
@@ -4476,9 +4491,9 @@ def load(path, repository=None, tag=None):
                 result = tag_(top_level_images[0], repository=repository, tag=tag)
                 ret["Image"] = tagged_image
             except IndexError:
-                ret[
-                    "Warning"
-                ] = "No top-level image layers were loaded, no image was tagged"
+                ret["Warning"] = (
+                    "No top-level image layers were loaded, no image was tagged"
+                )
             except Exception as exc:  # pylint: disable=broad-except
                 ret["Warning"] = "Failed to tag {} as {}: {}".format(
                     top_level_images[0], tagged_image, exc
@@ -4593,7 +4608,7 @@ def pull(
         except Exception as exc:  # pylint: disable=broad-except
             raise CommandExecutionError(
                 f"Unable to interpret API event: '{event}'",
-                info={"Error": exc.__str__()},
+                info={"Error": str(exc)},
             )
         try:
             event_type = next(iter(event))
@@ -4687,7 +4702,7 @@ def push(
         except Exception as exc:  # pylint: disable=broad-except
             raise CommandExecutionError(
                 f"Unable to interpret API event: '{event}'",
-                info={"Error": exc.__str__()},
+                info={"Error": str(exc)},
             )
         try:
             event_type = next(iter(event))
@@ -5483,7 +5498,7 @@ def disconnect_all_containers_from_network(network_id):
             disconnect_container_from_network(cname, network_id)
             ret.append(cname)
         except CommandExecutionError as exc:
-            msg = exc.__str__()
+            msg = str(exc)
             if "404" not in msg:
                 # If 404 was in the error, then the container no longer exists,
                 # so to avoid a race condition we won't consider 404 errors to
@@ -6633,7 +6648,7 @@ def _prepare_trans_tar(name, sls_opts, mods=None, pillar=None, extra_filerefs=""
     # reuse it from salt.ssh, however this function should
     # be somewhere else
     refs = salt.client.ssh.state.lowstate_file_refs(chunks, extra_filerefs)
-    with salt.fileclient.get_file_client(__opts__) as fileclient:
+    with _file_client() as fileclient:
         return salt.client.ssh.state.prep_trans_tar(
             fileclient, chunks, refs, pillar, name
         )

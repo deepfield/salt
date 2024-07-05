@@ -1,6 +1,7 @@
 """
 All salt configuration loading and defaults should be in this module
 """
+
 import codecs
 import glob
 import logging
@@ -14,6 +15,7 @@ from copy import deepcopy
 
 import salt.defaults.exitcodes
 import salt.exceptions
+import salt.features
 import salt.syspaths
 import salt.utils.data
 import salt.utils.dictupdate
@@ -39,8 +41,6 @@ from salt._logging import (
 try:
     import psutil
 
-    if not hasattr(psutil, "virtual_memory"):
-        raise ImportError("Version of psutil too old.")
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
@@ -87,7 +87,7 @@ def _gather_buffer_space():
 
     Result is in bytes.
     """
-    if HAS_PSUTIL and psutil.version_info >= (0, 6, 0):
+    if HAS_PSUTIL:
         # Oh good, we have psutil. This will be quick.
         total_mem = psutil.virtual_memory().total
     else:
@@ -1056,7 +1056,7 @@ DEFAULT_MINION_OPTS = immutabletypes.freeze(
         "pillar_cache": False,
         "pillar_cache_ttl": 3600,
         "pillar_cache_backend": "disk",
-        "request_channel_timeout": 30,
+        "request_channel_timeout": 60,
         "request_channel_tries": 3,
         "gpg_cache": False,
         "gpg_cache_ttl": 86400,
@@ -1302,6 +1302,7 @@ DEFAULT_MINION_OPTS = immutabletypes.freeze(
         "global_state_conditions": None,
         "reactor_niceness": None,
         "fips_mode": False,
+        "features": {},
     }
 )
 
@@ -1647,6 +1648,7 @@ DEFAULT_MASTER_OPTS = immutabletypes.freeze(
         "netapi_enable_clients": [],
         "maintenance_interval": 3600,
         "fileserver_interval": 3600,
+        "features": {},
     }
 )
 
@@ -1681,6 +1683,7 @@ DEFAULT_PROXY_MINION_OPTS = immutabletypes.freeze(
         "pki_dir": os.path.join(salt.syspaths.LIB_STATE_DIR, "pki", "proxy"),
         "cachedir": os.path.join(salt.syspaths.CACHE_DIR, "proxy"),
         "sock_dir": os.path.join(salt.syspaths.SOCK_DIR, "proxy"),
+        "features": {},
     }
 )
 
@@ -1714,6 +1717,7 @@ DEFAULT_CLOUD_OPTS = immutabletypes.freeze(
         "log_rotate_backup_count": 0,
         "bootstrap_delay": 0,
         "cache": "localfs",
+        "features": {},
     }
 )
 
@@ -2022,7 +2026,7 @@ def _read_conf_file(path):
         try:
             conf_opts = salt.utils.yaml.safe_load(conf_file) or {}
         except salt.utils.yaml.YAMLError as err:
-            message = "Error parsing configuration file: {} - {}".format(path, err)
+            message = f"Error parsing configuration file: {path} - {err}"
             log.error(message)
             if path.endswith("_schedule.conf"):
                 # Create empty dictionary of config options
@@ -2119,7 +2123,7 @@ def load_config(path, env_var, default_path=None, exit_on_config_errors=True):
     # If the configuration file is missing, attempt to copy the template,
     # after removing the first header line.
     if not os.path.isfile(path):
-        template = "{}.template".format(path)
+        template = f"{path}.template"
         if os.path.isfile(template):
             log.debug("Writing %s based on %s", path, template)
             with salt.utils.files.fopen(path, "w") as out:
@@ -2324,6 +2328,7 @@ def minion_config(
     if role != "master":
         apply_sdb(opts)
         _validate_opts(opts)
+    salt.features.setup_features(opts)
     return opts
 
 
@@ -2335,6 +2340,7 @@ def mminion_config(path, overrides, ignore_config_errors=True):
     _validate_opts(opts)
     opts["grains"] = salt.loader.grains(opts)
     opts["pillar"] = {}
+    salt.features.setup_features(opts)
     return opts
 
 
@@ -2421,6 +2427,7 @@ def proxy_config(
 
     apply_sdb(opts)
     _validate_opts(opts)
+    salt.features.setup_features(opts)
     return opts
 
 
@@ -2498,6 +2505,7 @@ def syndic_config(
         if urllib.parse.urlparse(opts.get(config_key, "")).scheme == "":
             prepend_root_dirs.append(config_key)
     prepend_root_dir(opts, prepend_root_dirs)
+    salt.features.setup_features(opts)
     return opts
 
 
@@ -2750,6 +2758,7 @@ def cloud_config(
         prepend_root_dirs.append(opts["log_file"])
     prepend_root_dir(opts, prepend_root_dirs)
 
+    salt.features.setup_features(opts)
     # Return the final options
     return opts
 
@@ -2791,7 +2800,7 @@ def apply_cloud_config(overrides, defaults=None):
                     if alias not in config["providers"]:
                         config["providers"][alias] = {}
 
-                    detail["provider"] = "{}:{}".format(alias, driver)
+                    detail["provider"] = f"{alias}:{driver}"
                     config["providers"][alias][driver] = detail
             elif isinstance(details, dict):
                 if "driver" not in details:
@@ -2808,7 +2817,7 @@ def apply_cloud_config(overrides, defaults=None):
                 if alias not in config["providers"]:
                     config["providers"][alias] = {}
 
-                details["provider"] = "{}:{}".format(alias, driver)
+                details["provider"] = f"{alias}:{driver}"
                 config["providers"][alias][driver] = details
 
     # Migrate old configuration
@@ -3079,7 +3088,7 @@ def apply_cloud_providers_config(overrides, defaults=None):
         for entry in val:
 
             if "driver" not in entry:
-                entry["driver"] = "-only-extendable-{}".format(ext_count)
+                entry["driver"] = f"-only-extendable-{ext_count}"
                 ext_count += 1
 
             if key not in providers:
@@ -3122,7 +3131,7 @@ def apply_cloud_providers_config(overrides, defaults=None):
                                 details["driver"], provider_alias, alias, provider
                             )
                         )
-                    details["extends"] = "{}:{}".format(alias, provider)
+                    details["extends"] = f"{alias}:{provider}"
                     # change provider details '-only-extendable-' to extended
                     # provider name
                     details["driver"] = provider
@@ -3143,10 +3152,10 @@ def apply_cloud_providers_config(overrides, defaults=None):
                     )
                 else:
                     if driver in providers.get(extends):
-                        details["extends"] = "{}:{}".format(extends, driver)
+                        details["extends"] = f"{extends}:{driver}"
                     elif "-only-extendable-" in providers.get(extends):
                         details["extends"] = "{}:{}".format(
-                            extends, "-only-extendable-{}".format(ext_count)
+                            extends, f"-only-extendable-{ext_count}"
                         )
                     else:
                         # We're still not aware of what we're trying to extend
@@ -3860,7 +3869,7 @@ def _update_discovery_config(opts):
         for key in opts["discovery"]:
             if key not in discovery_config:
                 raise salt.exceptions.SaltConfigurationError(
-                    "Unknown discovery option: {}".format(key)
+                    f"Unknown discovery option: {key}"
                 )
         if opts.get("__role") != "minion":
             for key in ["attempts", "pause", "match"]:
@@ -3923,6 +3932,7 @@ def master_config(
     if salt.utils.data.is_dictlist(opts["nodegroups"]):
         opts["nodegroups"] = salt.utils.data.repack_dictlist(opts["nodegroups"])
     apply_sdb(opts)
+    salt.features.setup_features(opts)
     return opts
 
 
@@ -3937,6 +3947,14 @@ def apply_master_config(overrides=None, defaults=None):
 
     opts = defaults.copy()
     opts["__role"] = "master"
+
+    # Suppress fileserver update in FSChan, for FSClient instances generated
+    # during Pillar compilation. The master daemon already handles FS updates
+    # in its maintenance thread. Refreshing during Pillar compilation slows
+    # down Pillar considerably (even to the point of timeout) when there are
+    # many gitfs remotes.
+    opts["__fs_update"] = True
+
     _adjust_log_file_override(overrides, defaults["log_file"])
     if overrides:
         opts.update(overrides)
@@ -4162,6 +4180,7 @@ def client_config(path, env_var="SALT_CLIENT_CONFIG", defaults=None):
 
     # Return the client options
     _validate_opts(opts)
+    salt.features.setup_features(opts)
     return opts
 
 
@@ -4185,6 +4204,7 @@ def api_config(path):
     )
 
     prepend_root_dir(opts, ["api_pidfile", "api_logfile", "log_file", "pidfile"])
+    salt.features.setup_features(opts)
     return opts
 
 

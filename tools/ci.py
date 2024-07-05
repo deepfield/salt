@@ -1,6 +1,7 @@
 """
 These commands are used in the CI pipeline.
 """
+
 # pylint: disable=resource-leakage,broad-except,3rd-party-module-not-gated
 from __future__ import annotations
 
@@ -57,7 +58,7 @@ def print_gh_event(ctx: Context):
         assert gh_event_path is not None
 
     try:
-        gh_event = json.loads(open(gh_event_path).read())
+        gh_event = json.loads(open(gh_event_path, encoding="utf-8").read())
     except Exception as exc:
         ctx.error(f"Could not load the GH Event payload from {gh_event_path!r}:\n", exc)
         ctx.exit(1)
@@ -179,7 +180,7 @@ def runner_types(ctx: Context, event_name: str):
         assert github_output is not None
 
     try:
-        gh_event = json.loads(open(gh_event_path).read())
+        gh_event = json.loads(open(gh_event_path, encoding="utf-8").read())
     except Exception as exc:
         ctx.error(f"Could not load the GH Event payload from {gh_event_path!r}:\n", exc)
         ctx.exit(1)
@@ -201,7 +202,7 @@ def runner_types(ctx: Context, event_name: str):
             # If this is a pull request coming from the same repository, don't run anything
             ctx.info("Pull request is coming from the same repository.")
             ctx.info("Not running any jobs since they will run against the branch")
-            ctx.info("Writing 'runners' to the github outputs file")
+            ctx.info("Writing 'runners' to the github outputs file:\n", runners)
             with open(github_output, "a", encoding="utf-8") as wfh:
                 wfh.write(f"runners={json.dumps(runners)}\n")
             ctx.exit(0)
@@ -209,7 +210,7 @@ def runner_types(ctx: Context, event_name: str):
         # This is a PR from a forked repository
         ctx.info("Pull request is not comming from the same repository")
         runners["github-hosted"] = runners["self-hosted"] = True
-        ctx.info("Writing 'runners' to the github outputs file")
+        ctx.info("Writing 'runners' to the github outputs file:\n", runners)
         with open(github_output, "a", encoding="utf-8") as wfh:
             wfh.write(f"runners={json.dumps(runners)}\n")
         ctx.exit(0)
@@ -223,7 +224,7 @@ def runner_types(ctx: Context, event_name: str):
         # This is running on a forked repository, don't run tests
         ctx.info("The push event is on a forked repository")
         runners["github-hosted"] = True
-        ctx.info("Writing 'runners' to the github outputs file")
+        ctx.info("Writing 'runners' to the github outputs file:\n", runners)
         with open(github_output, "a", encoding="utf-8") as wfh:
             wfh.write(f"runners={json.dumps(runners)}\n")
         ctx.exit(0)
@@ -231,7 +232,7 @@ def runner_types(ctx: Context, event_name: str):
     # Not running on a fork, or the fork has self hosted runners, run everything
     ctx.info(f"The {event_name!r} event is from the main repository")
     runners["github-hosted"] = runners["self-hosted"] = True
-    ctx.info("Writing 'runners' to the github outputs file")
+    ctx.info("Writing 'runners' to the github outputs file:\n", runners)
     with open(github_output, "a", encoding="utf-8") as wfh:
         wfh.write(f"runners={json.dumps(runners)}")
     ctx.exit(0)
@@ -310,6 +311,11 @@ def define_jobs(
 
     if event_name != "pull_request":
         # In this case, all defined jobs should run
+        with open(github_step_summary, "a", encoding="utf-8") as wfh:
+            wfh.write("Selected Jobs:\n")
+            for name, value in sorted(jobs.items()):
+                wfh.write(f" - `{name}`: {value}\n")
+
         ctx.info("Writing 'jobs' to the github outputs file")
         with open(github_output, "a", encoding="utf-8") as wfh:
             wfh.write(f"jobs={json.dumps(jobs)}\n")
@@ -326,7 +332,7 @@ def define_jobs(
     gh_event_path = os.environ.get("GITHUB_EVENT_PATH") or None
     if gh_event_path is not None:
         try:
-            gh_event = json.loads(open(gh_event_path).read())
+            gh_event = json.loads(open(gh_event_path, encoding="utf-8").read())
         except Exception as exc:
             ctx.error(
                 f"Could not load the GH Event payload from {gh_event_path!r}:\n", exc
@@ -421,7 +427,7 @@ def define_jobs(
     with open(github_step_summary, "a", encoding="utf-8") as wfh:
         wfh.write("Selected Jobs:\n")
         for name, value in sorted(jobs.items()):
-            wfh.write(f" - {name}: {value}\n")
+            wfh.write(f" - `{name}`: {value}\n")
 
     ctx.info("Writing 'jobs' to the github outputs file")
     with open(github_output, "a", encoding="utf-8") as wfh:
@@ -473,7 +479,7 @@ def define_testrun(ctx: Context, event_name: str, changed_files: pathlib.Path):
     gh_event_path = os.environ.get("GITHUB_EVENT_PATH") or None
     if gh_event_path is not None:
         try:
-            gh_event = json.loads(open(gh_event_path).read())
+            gh_event = json.loads(open(gh_event_path, encoding="utf-8").read())
         except Exception as exc:
             ctx.error(
                 f"Could not load the GH Event payload from {gh_event_path!r}:\n", exc
@@ -620,7 +626,7 @@ def define_testrun(ctx: Context, event_name: str, changed_files: pathlib.Path):
             wfh.write(f"{path}\n")
         wfh.write("</pre>\n</details>\n")
 
-    ctx.info("Writing 'testrun' to the github outputs file")
+    ctx.info("Writing 'testrun' to the github outputs file:\n", testrun)
     with open(github_output, "a", encoding="utf-8") as wfh:
         wfh.write(f"testrun={json.dumps(testrun)}\n")
 
@@ -653,20 +659,11 @@ def matrix(
     """
     _matrix = []
     _splits = {
-        "functional": 3,
+        "functional": 4,
         "integration": 5,
         "scenarios": 1,
-        "unit": 2,
+        "unit": 4,
     }
-    # On nightly and scheduled builds we don't want splits at all
-    if workflow.lower() in ("nightly", "scheduled"):
-        ctx.info(f"Reducing splits definition since workflow is '{workflow}'")
-        for key in _splits:
-            new_value = _splits[key] - 2
-            if new_value < 1:
-                new_value = 1
-            _splits[key] = new_value
-
     for transport in ("zeromq", "tcp"):
         if transport == "tcp":
             if distro_slug not in (
@@ -786,18 +783,21 @@ def pkg_matrix(
         parts = distro_slug.split("-")
         name = parts[0]
         version = parts[1]
-        if name in ("debian", "ubuntu"):
-            arch = "amd64"
-        elif name in ("centos", "centosstream", "amazonlinux", "photonos"):
-            arch = "x86_64"
+
         if len(parts) > 2:
             arch = parts[2]
+        elif name in ("debian", "ubuntu"):
+            arch = "amd64"
+        else:
+            arch = "x86_64"
+
         if name == "amazonlinux":
             name = "amazon"
-        if "centos" in name:
+        elif "centos" in name or name == "rockylinux":
             name = "redhat"
-        if "photon" in name:
+        elif "photon" in name:
             name = "photon"
+
         if name == "windows":
             prefixes = {
                 "classic": "windows/",
@@ -886,15 +886,15 @@ def get_releases(ctx: Context, repository: str = "saltstack/salt"):
     """
     Generate the latest salt release.
     """
+    releases = tools.utils.get_salt_releases(ctx, repository)
+    str_releases = [str(version) for version in releases]
+    latest = str_releases[-1]
+
+    ctx.info("Releases:", sorted(str_releases))
+    ctx.info(f"Latest Release: '{latest}'")
+
     github_output = os.environ.get("GITHUB_OUTPUT")
-
-    if github_output is None:
-        ctx.exit(1, "The 'GITHUB_OUTPUT' variable is not set.")
-    else:
-        releases = tools.utils.get_salt_releases(ctx, repository)
-        str_releases = [str(version) for version in releases]
-        latest = str_releases[-1]
-
+    if github_output is not None:
         with open(github_output, "a", encoding="utf-8") as wfh:
             wfh.write(f"latest-release={latest}\n")
             wfh.write(f"releases={json.dumps(str_releases)}\n")
@@ -918,6 +918,7 @@ def get_pr_test_labels(
     """
     Set the pull-request labels.
     """
+    github_step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     gh_event_path = os.environ.get("GITHUB_EVENT_PATH") or None
     if gh_event_path is None:
         labels = _get_pr_test_labels_from_api(ctx, repository, pr=pr)
@@ -926,7 +927,7 @@ def get_pr_test_labels(
             assert gh_event_path is not None
 
         try:
-            gh_event = json.loads(open(gh_event_path).read())
+            gh_event = json.loads(open(gh_event_path, encoding="utf-8").read())
         except Exception as exc:
             ctx.error(
                 f"Could not load the GH Event payload from {gh_event_path!r}:\n", exc
@@ -940,12 +941,51 @@ def get_pr_test_labels(
         pr = gh_event["pull_request"]["number"]
         labels = _get_pr_test_labels_from_event_payload(gh_event)
 
+    shared_context = tools.utils.get_cicd_shared_context()
+    mandatory_os_slugs = set(shared_context["mandatory_os_slugs"])
+    available = set(tools.utils.get_golden_images())
+    # Add MacOS provided by GitHub
+    available.update({"macos-12", "macos-13", "macos-13-arm64"})
+    # Remove mandatory OS'ss
+    available.difference_update(mandatory_os_slugs)
+    select_all = set(available)
+    selected = set()
+    test_labels = []
     if labels:
         ctx.info(f"Test labels for pull-request #{pr} on {repository}:")
-        for name, description in labels:
-            ctx.info(f" * [yellow]{name}[/yellow]: {description}")
+        for name, description in sorted(labels):
+            ctx.info(
+                f" * [yellow]{name}[/yellow]: {description or '[red][No description][/red]'}"
+            )
+            if name.startswith("test:os:"):
+                slug = name.split("test:os:", 1)[-1]
+                if slug not in available and name != "test:os:all":
+                    ctx.warn(
+                        f"The '{slug}' slug exists as a label but not as an available OS."
+                    )
+                selected.add(slug)
+                if slug != "all":
+                    available.remove(slug)
+                continue
+            test_labels.append(name)
+
     else:
         ctx.info(f"No test labels for pull-request #{pr} on {repository}")
+
+    if "test:coverage" in test_labels:
+        ctx.info(
+            "Selecting ALL available OS'es because the label 'test:coverage' is set."
+        )
+        selected.add("all")
+        if github_step_summary is not None:
+            with open(github_step_summary, "a", encoding="utf-8") as wfh:
+                wfh.write(
+                    "Selecting ALL available OS'es because the label `test:coverage` is set.\n"
+                )
+
+    if "all" in selected:
+        selected = select_all
+        available.clear()
 
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output is None:
@@ -954,9 +994,44 @@ def get_pr_test_labels(
     if TYPE_CHECKING:
         assert github_output is not None
 
-    ctx.info("Writing 'labels' to the github outputs file")
+    ctx.info("Writing 'labels' to the github outputs file...")
+    ctx.info("Test Labels:")
+    if not test_labels:
+        ctx.info(" * None")
+    else:
+        for label in sorted(test_labels):
+            ctx.info(f" * [yellow]{label}[/yellow]")
+    ctx.info("* OS Labels:")
+    if not selected:
+        ctx.info(" * None")
+    else:
+        for slug in sorted(selected):
+            ctx.info(f" * [yellow]{slug}[/yellow]")
     with open(github_output, "a", encoding="utf-8") as wfh:
-        wfh.write(f"labels={json.dumps([label[0] for label in labels])}\n")
+        wfh.write(f"os-labels={json.dumps([label for label in selected])}\n")
+        wfh.write(f"test-labels={json.dumps([label for label in test_labels])}\n")
+
+    github_step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if github_step_summary is not None:
+        with open(github_step_summary, "a", encoding="utf-8") as wfh:
+            wfh.write("Mandatory OS Test Runs:\n")
+            for slug in sorted(mandatory_os_slugs):
+                wfh.write(f"* `{slug}`\n")
+
+            wfh.write("\nOptional OS Test Runs(selected by label):\n")
+            if not selected:
+                wfh.write("* None\n")
+            else:
+                for slug in sorted(selected):
+                    wfh.write(f"* `{slug}`\n")
+
+            wfh.write("\nSkipped OS Tests Runs(NOT selected by label):\n")
+            if not available:
+                wfh.write("* None\n")
+            else:
+                for slug in sorted(available):
+                    wfh.write(f"* `{slug}`\n")
+
     ctx.exit(0)
 
 
@@ -1030,40 +1105,34 @@ def get_testing_releases(
     """
     Get a list of releases to use for the upgrade and downgrade tests.
     """
+    # We aren't testing upgrades from anything before 3006.0 except the latest 3005.x
+    threshold_major = 3005
+    parsed_salt_version = tools.utils.Version(salt_version)
+    # We want the latest 4 major versions, removing the oldest if this version is a new major
+    num_major_versions = 4
+    if parsed_salt_version.minor == 0:
+        num_major_versions = 3
+    majors = sorted(
+        list(
+            {version.major for version in releases if version.major >= threshold_major}
+        )
+    )[-num_major_versions:]
+    testing_releases = []
+    # Append the latest minor for each major
+    for major in majors:
+        minors_of_major = [version for version in releases if version.major == major]
+        testing_releases.append(minors_of_major[-1])
+
+    str_releases = [str(version) for version in testing_releases]
+
+    ctx.info("Testing Releases:", sorted(str_releases))
+
     github_output = os.environ.get("GITHUB_OUTPUT")
-    if github_output is None:
-        ctx.exit(1, "The 'GITHUB_OUTPUT' variable is not set.")
-    else:
-        # We aren't testing upgrades from anything before 3006.0 except the latest 3005.x
-        threshold_major = 3005
-        parsed_salt_version = tools.utils.Version(salt_version)
-        # We want the latest 4 major versions, removing the oldest if this version is a new major
-        num_major_versions = 4
-        if parsed_salt_version.minor == 0:
-            num_major_versions = 3
-        majors = sorted(
-            list(
-                {
-                    version.major
-                    for version in releases
-                    if version.major >= threshold_major
-                }
-            )
-        )[-num_major_versions:]
-        testing_releases = []
-        # Append the latest minor for each major
-        for major in majors:
-            minors_of_major = [
-                version for version in releases if version.major == major
-            ]
-            testing_releases.append(minors_of_major[-1])
-
-        str_releases = [str(version) for version in testing_releases]
-
+    if github_output is not None:
         with open(github_output, "a", encoding="utf-8") as wfh:
             wfh.write(f"testing-releases={json.dumps(str_releases)}\n")
 
-        ctx.exit(0)
+    ctx.exit(0)
 
 
 @ci.command(
@@ -1101,7 +1170,7 @@ def define_cache_seed(ctx: Context, static_cache_seed: str, randomize: bool = Fa
     gh_event_path = os.environ.get("GITHUB_EVENT_PATH") or None
     if gh_event_path is not None:
         try:
-            gh_event = json.loads(open(gh_event_path).read())
+            gh_event = json.loads(open(gh_event_path, encoding="utf-8").read())
         except Exception as exc:
             ctx.error(
                 f"Could not load the GH Event payload from {gh_event_path!r}:\n", exc
@@ -1165,12 +1234,15 @@ def upload_coverage(ctx: Context, reports_path: pathlib.Path, commit_sha: str = 
         commit_sha,
     ]
 
+    from_pull_request = False
+
     gh_event_path = os.environ.get("GITHUB_EVENT_PATH") or None
     if gh_event_path is not None:
         try:
-            gh_event = json.loads(open(gh_event_path).read())
+            gh_event = json.loads(open(gh_event_path, encoding="utf-8").read())
             pr_event_data = gh_event.get("pull_request")
             if pr_event_data:
+                from_pull_request = True
                 codecov_args.extend(["--parent", pr_event_data["base"]["sha"]])
         except Exception as exc:
             ctx.error(
@@ -1209,12 +1281,37 @@ def upload_coverage(ctx: Context, reports_path: pathlib.Path, commit_sha: str = 
                 "--flags",
                 flags,
                 check=False,
+                capture=True,
             )
+            stdout = ret.stdout.strip().decode()
+            stderr = ret.stderr.strip().decode()
             if ret.returncode == 0:
+                ctx.console_stdout.print(stdout)
+                ctx.console.print(stderr)
+                break
+
+            if (
+                "Too many uploads to this commit" in stdout
+                or "Too many uploads to this commit" in stderr
+            ):
+                # Let's just stop trying
+                ctx.console_stdout.print(stdout)
+                ctx.console.print(stderr)
                 break
 
             if current_attempt >= max_attempts:
-                ctx.error(f"Failed to upload {fpath} to codecov")
+                ctx.error(f"Failed to upload {fpath} to codecov:")
+                ctx.console_stdout.print(stdout)
+                ctx.console.print(stderr)
+                if from_pull_request is True:
+                    # Codecov is having some issues with tokenless uploads
+                    # Don't let PR's fail, but do fail otherwise so we know
+                    # we should fix it.
+                    github_step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+                    if github_step_summary is not None:
+                        with open(github_step_summary, "a", encoding="utf-8") as wfh:
+                            wfh.write(f"Failed to upload `{fpath}` to codecov\n")
+                    ctx.exit(0)
                 ctx.exit(1)
 
             ctx.warn(f"Waiting {sleep_time} seconds until next retry...")

@@ -1,15 +1,11 @@
 """
 These commands are related to the test suite.
 """
+
 # pylint: disable=resource-leakage,broad-except,3rd-party-module-not-gated
 from __future__ import annotations
 
-import contextlib
-import json
 import logging
-import shutil
-import sys
-import zipfile
 from typing import TYPE_CHECKING
 
 from ptscripts import Context, command_group
@@ -17,9 +13,6 @@ from ptscripts import Context, command_group
 import tools.utils
 import tools.utils.gh
 from tools.utils import ExitCode
-
-with tools.utils.REPO_ROOT.joinpath("cicd", "golden-images.json").open() as rfh:
-    OS_SLUGS = sorted(json.load(rfh))
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +41,7 @@ ts = command_group(name="ts", help="Test Suite Related Commands", description=__
         },
         "platform": {
             "help": "The onedir platform artifact to download",
-            "choices": ("linux", "darwin", "windows"),
+            "choices": ("linux", "macos", "windows"),
             "required": True,
         },
         "arch": {
@@ -58,7 +51,7 @@ ts = command_group(name="ts", help="Test Suite Related Commands", description=__
         "slug": {
             "help": "The OS slug",
             "required": True,
-            "choices": OS_SLUGS,
+            "choices": sorted(tools.utils.get_golden_images()),
         },
         "pkg": {
             "help": "Also download package test artifacts",
@@ -146,20 +139,16 @@ def setup_testsuite(
     if exitcode and exitcode != ExitCode.SOFT_FAIL:
         ctx.exit(exitcode)
     exitcode = tools.utils.gh.download_nox_artifact(
-        ctx, run_id=run_id, slug=slug, nox_env="ci-test-onedir", repository=repository
+        ctx,
+        run_id=run_id,
+        platform=platform,
+        arch=arch,
+        nox_env="ci-test-onedir",
+        repository=repository,
     )
     if exitcode and exitcode != ExitCode.SOFT_FAIL:
         ctx.exit(exitcode)
     if pkg:
-        exitcode = tools.utils.gh.download_nox_artifact(
-            ctx,
-            run_id=run_id,
-            slug=slug,
-            nox_env=f"test-pkgs-onedir-{arch}",
-            repository=repository,
-        )
-        if exitcode and exitcode != ExitCode.SOFT_FAIL:
-            ctx.exit(exitcode)
         exitcode = tools.utils.gh.download_pkgs_artifact(
             ctx,
             run_id=run_id,

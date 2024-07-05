@@ -11,7 +11,6 @@ import salt.state
 import salt.utils.files
 import salt.utils.platform
 from salt.exceptions import CommandExecutionError
-from salt.utils.odict import OrderedDict
 from tests.support.mock import MagicMock, patch
 
 log = logging.getLogger(__name__)
@@ -42,10 +41,11 @@ def test_format_log_list(caplog):
     """
     Test running format_log when ret is not a dictionary
     """
-    ret = ["test1", "test2"]
-    salt.state.format_log(ret)
-    assert "INFO" in caplog.text
-    assert f"{ret}" in caplog.text
+    with caplog.at_level(logging.INFO):
+        ret = ["test1", "test2"]
+        salt.state.format_log(ret)
+        assert "INFO" in caplog.text
+        assert f"{ret}" in caplog.text
 
 
 def test_render_error_on_invalid_requisite(minion_opts):
@@ -55,21 +55,21 @@ def test_render_error_on_invalid_requisite(minion_opts):
     """
     with patch("salt.state.State._gather_pillar"):
         high_data = {
-            "git": OrderedDict(
+            "git": salt.state.HashableOrderedDict(
                 [
                     (
                         "pkg",
                         [
-                            OrderedDict(
+                            salt.state.HashableOrderedDict(
                                 [
                                     (
                                         "require",
                                         [
-                                            OrderedDict(
+                                            salt.state.HashableOrderedDict(
                                                 [
                                                     (
                                                         "file",
-                                                        OrderedDict(
+                                                        salt.state.HashableOrderedDict(
                                                             [("test1", "test")]
                                                         ),
                                                     )
@@ -88,7 +88,9 @@ def test_render_error_on_invalid_requisite(minion_opts):
                 ]
             )
         }
-        minion_opts["pillar"] = {"git": OrderedDict([("test1", "test")])}
+        minion_opts["pillar"] = {
+            "git": salt.state.HashableOrderedDict([("test1", "test")])
+        }
         state_obj = salt.state.State(minion_opts)
         with pytest.raises(salt.exceptions.SaltRenderError):
             state_obj.call_high(high_data)
@@ -540,7 +542,7 @@ def test_verify_onlyif_parse_slots(tmp_path, minion_opts):
         "onlyif": [
             {
                 "fun": "file.search",
-                "args": ["__slot__:salt:test.echo({})".format(_expand_win_path(name))],
+                "args": [f"__slot__:salt:test.echo({_expand_win_path(name)})"],
                 "pattern": "__slot__:salt:test.echo(file-contents)",
             }
         ],
@@ -642,7 +644,7 @@ def test_verify_unless_parse_slots(tmp_path, minion_opts):
         "unless": [
             {
                 "fun": "file.search",
-                "args": ["__slot__:salt:test.echo({})".format(_expand_win_path(name))],
+                "args": [f"__slot__:salt:test.echo({_expand_win_path(name)})"],
                 "pattern": "__slot__:salt:test.echo(file-contents)",
             }
         ],
@@ -719,13 +721,22 @@ def test_render_requisite_require_disabled(minion_opts):
     """
     with patch("salt.state.State._gather_pillar"):
         high_data = {
-            "step_one": OrderedDict(
+            "step_one": salt.state.HashableOrderedDict(
                 [
                     (
                         "test",
                         [
-                            OrderedDict(
-                                [("require", [OrderedDict([("test", "step_two")])])]
+                            salt.state.HashableOrderedDict(
+                                [
+                                    (
+                                        "require",
+                                        [
+                                            salt.state.HashableOrderedDict(
+                                                [("test", "step_two")]
+                                            )
+                                        ],
+                                    )
+                                ]
                             ),
                             "succeed_with_changes",
                             {"order": 10000},
@@ -763,16 +774,20 @@ def test_render_requisite_require_in_disabled(minion_opts):
                 "__env__": "base",
                 "__sls__": "test.disable_require_in",
             },
-            "step_two": OrderedDict(
+            "step_two": salt.state.HashableOrderedDict(
                 [
                     (
                         "test",
                         [
-                            OrderedDict(
+                            salt.state.HashableOrderedDict(
                                 [
                                     (
                                         "require_in",
-                                        [OrderedDict([("test", "step_one")])],
+                                        [
+                                            salt.state.HashableOrderedDict(
+                                                [("test", "step_one")]
+                                            )
+                                        ],
                                     )
                                 ]
                             ),
@@ -973,7 +988,7 @@ def test_mod_aggregate(minion_opts):
         "__sls__": "test.62439",
         "__env__": "base",
         "__id__": "sl",
-        "require_in": [OrderedDict([("file", "/tmp/foo")])],
+        "require_in": [salt.state.HashableOrderedDict([("file", "/tmp/foo")])],
         "order": 10002,
         "aggregate": True,
         "fun": "installed",
@@ -999,7 +1014,7 @@ def test_mod_aggregate(minion_opts):
             "__env__": "base",
             "__id__": "figlet",
             "__agg__": True,
-            "require": [OrderedDict([("file", "/tmp/foo")])],
+            "require": [salt.state.HashableOrderedDict([("file", "/tmp/foo")])],
             "order": 10001,
             "aggregate": True,
             "fun": "installed",
@@ -1010,7 +1025,7 @@ def test_mod_aggregate(minion_opts):
             "__sls__": "test.62439",
             "__env__": "base",
             "__id__": "sl",
-            "require_in": [OrderedDict([("file", "/tmp/foo")])],
+            "require_in": [salt.state.HashableOrderedDict([("file", "/tmp/foo")])],
             "order": 10002,
             "aggregate": True,
             "fun": "installed",
@@ -1025,7 +1040,7 @@ def test_mod_aggregate(minion_opts):
         "__sls__": "test.62439",
         "__env__": "base",
         "__id__": "sl",
-        "require_in": [OrderedDict([("file", "/tmp/foo")])],
+        "require_in": [salt.state.HashableOrderedDict([("file", "/tmp/foo")])],
         "order": 10002,
         "fun": "installed",
         "__agg__": True,
@@ -1044,7 +1059,9 @@ def test_mod_aggregate(minion_opts):
             assert "require_in" in low_ret
 
             # Ensure all the requires from pkg states are in low
-            assert low_ret["require_in"] == [OrderedDict([("file", "/tmp/foo")])]
+            assert low_ret["require_in"] == [
+                salt.state.HashableOrderedDict([("file", "/tmp/foo")])
+            ]
 
             # Ensure that the require requisite from the
             # figlet state doesn't find its way into this state
@@ -1189,7 +1206,7 @@ def test_load_modules_list(minion_opts):
         "__sls__": "test",
         "__env__": "base",
         "__id__": "nginx",
-        "provider": [OrderedDict([("cmd", "cmdmod")])],
+        "provider": [salt.state.HashableOrderedDict([("cmd", "cmdmod")])],
         "order": 10000,
         "fun": "installed",
     }
@@ -1214,7 +1231,7 @@ def test_load_modules_dict(minion_opts):
         "__sls__": "test",
         "__env__": "base",
         "__id__": "nginx",
-        "provider": OrderedDict([("cmd", "test")]),
+        "provider": salt.state.HashableOrderedDict([("cmd", "test")]),
         "order": 10000,
         "fun": "installed",
     }

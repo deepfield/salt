@@ -4,31 +4,64 @@
 #
 #    pip-compile --output-file=requirements/static/ci/py3.9/linux.txt requirements/base.txt requirements/deepfield.txt requirements/static/ci/linux.in requirements/zeromq.txt
 #
-aiohttp==3.8.5
-    # via
-    #   aiohttp-retry
-    #   twilio
-aiohttp-retry==2.8.3
-    # via twilio
-aiosignal==1.3.1
+aiohttp==3.9.4
+    # via etcd3-py
+aiosignal==1.2.0
     # via aiohttp
-ansible==8.4.0 ; python_version >= "3.9"
-    # via -r requirements/static/ci/linux.in
-ansible-core==2.15.4
-    # via ansible
-anyio==4.0.0
-    # via httpcore
-async-timeout==4.0.3
+apache-libcloud==2.5.0 ; sys_platform != "win32"
+    # via -r requirements/static/ci/common.in
+apscheduler==3.6.3
+    # via python-telegram-bot
+asn1crypto==1.3.0
+    # via
+    #   certvalidator
+    #   oscrypto
+async-timeout==4.0.2
     # via aiohttp
 attrs==23.1.0
     # via aiohttp
 certifi==2023.7.22
     # via
-    #   httpcore
-    #   httpx
+    #   aiohttp
+    #   jsonschema
+    #   pytest-salt-factories
+    #   pytest-shell-utilities
+    #   pytest-skip-markers
+    #   pytest-system-statistics
+backports.entry-points-selectable==1.1.0
+    # via virtualenv
+bcrypt==4.1.2
+    # via
+    #   -r requirements/static/ci/common.in
+    #   paramiko
+boto3==1.21.46
+    # via
+    #   -r requirements/static/ci/common.in
+    #   moto
+boto==2.49.0
+    # via -r requirements/static/ci/common.in
+botocore==1.24.46
+    # via
+    #   boto3
+    #   moto
+    #   s3transfer
+cachetools==4.2.2
+    # via
+    #   google-auth
+    #   python-telegram-bot
+cassandra-driver==3.23.0
+    # via -r requirements/static/ci/common.in
+certifi==2023.07.22
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/ci/common.in
+    #   kubernetes
+    #   python-telegram-bot
     #   requests
 cffi==1.15.1
     # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/ci/common.in
     #   cryptography
     #   pygit2
 charset-normalizer==2.0.12
@@ -36,42 +69,99 @@ charset-normalizer==2.0.12
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   requests
 contextvars==2.4
-    # via -r requirements/base.txt
-cryptography==41.0.3
-    # via ansible-core
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/base.txt
+croniter==0.3.29 ; sys_platform != "win32"
+    # via -r requirements/static/ci/common.in
+cryptography==42.0.5
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/pkg/linux.in
+    #   etcd3-py
+    #   moto
+    #   paramiko
+    #   pyopenssl
+    #   trustme
+    #   vcert
+distlib==0.3.2
+    # via virtualenv
 distro==1.5.0
-    # via -r requirements/base.txt
-exceptiongroup==1.1.3
-    # via anyio
-frozenlist==1.4.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/base.txt
+    #   pytest-skip-markers
+dnspython==2.6.1
+    # via
+    #   -r requirements/static/ci/common.in
+    #   ciscoconfparse
+    #   python-etcd
+docker==6.1.3
+    # via -r requirements/pytest.txt
+etcd3-py==0.1.6
+    # via -r requirements/static/ci/common.in
+exceptiongroup==1.0.4
+    # via pytest
+filelock==3.0.12
+    # via virtualenv
+flaky==3.8.1
+    # via -r requirements/pytest.txt
+frozenlist==1.3.0
     # via
     #   aiohttp
     #   aiosignal
 gitdb==4.0.10
     # via gitpython
-gitpython==3.1.37
-    # via -r requirements/deepfield.txt
-h11==0.14.0
-    # via httpcore
-hglib==2.6.2
+gitpython==3.1.41
+    # via -r requirements/static/ci/common.in
+google-auth==2.1.0
+    # via kubernetes
+hglib==2.6.1
     # via -r requirements/static/ci/linux.in
-httpcore==0.17.3
-    # via httpx
-httpx==0.24.1
-    # via python-telegram-bot
-idna==2.8
+idna==3.7
     # via
     #   anyio
     #   httpx
     #   requests
+    #   trustme
     #   yarl
 immutables==0.15
-    # via contextvars
-jinja2==3.1.2
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   contextvars
+importlib-metadata==6.0.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/pkg/linux.in
+iniconfig==1.0.1
+    # via pytest
+ipaddress==1.0.22
+    # via kubernetes
+jaraco.classes==3.2.1
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   jaraco.collections
+jaraco.collections==3.4.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   cherrypy
+jaraco.functools==2.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   cheroot
+    #   jaraco.text
+    #   tempora
+jaraco.text==3.5.1
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   jaraco.collections
+jinja2==3.1.3
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   -r requirements/base.txt
-    #   ansible-core
+    #   junos-eznc
+    #   moto
+    #   napalm
 jmespath==1.0.1
     # via -r requirements/base.txt
 looseversion==1.0.2
@@ -93,18 +183,60 @@ packaging==22.0
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   -r requirements/base.txt
-    #   ansible-core
-pathspec==0.11.2
+    #   docker
+    #   pytest
+paramiko==3.4.0 ; sys_platform != "win32" and sys_platform != "darwin"
+    # via
+    #   -r requirements/static/ci/common.in
+    #   junos-eznc
+    #   napalm
+    #   ncclient
+    #   netmiko
+    #   scp
+passlib==1.7.4
+    # via
+    #   -r requirements/static/ci/common.in
+    #   ciscoconfparse
+pathspec==0.9.0
     # via yamllint
+pathtools==0.1.2
+    # via watchdog
+platformdirs==2.2.0
+    # via virtualenv
+pluggy==1.4.0
+    # via pytest
+portend==2.4
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   cherrypy
 psutil==5.8.0
-    # via -r requirements/base.txt
-psycopg2==2.9.7
-    # via -r requirements/deepfield.txt
-pycparser==2.21
-    # via cffi
-pycryptodomex==3.9.8
-    # via -r requirements/crypto.txt
-pygit2==1.9.1 ; python_version >= "3.10"
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/base.txt
+    #   pytest-salt-factories
+    #   pytest-shell-utilities
+    #   pytest-system-statistics
+pyasn1-modules==0.2.4
+    # via google-auth
+pyasn1==0.4.8
+    # via
+    #   pyasn1-modules
+    #   rsa
+pycparser==2.21 ; python_version >= "3.9"
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/ci/common.in
+    #   -r requirements/static/pkg/linux.in
+    #   cffi
+pycryptodomex==3.19.1
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/crypto.txt
+pyeapi==0.8.3
+    # via napalm
+pyfakefs==5.3.1
+    # via -r requirements/pytest.txt
+pygit2==1.13.1
     # via -r requirements/static/ci/linux.in
 pyiface==0.0.11
     # via -r requirements/static/ci/linux.in
@@ -112,6 +244,58 @@ pyjwt==2.8.0
     # via twilio
 pymysql==1.1.0 ; python_version > "3.5"
     # via -r requirements/static/ci/linux.in
+pynacl==1.5.0
+    # via
+    #   -r requirements/static/ci/common.in
+    #   paramiko
+pyopenssl==24.0.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/pkg/linux.in
+    #   etcd3-py
+pyparsing==3.0.9
+    # via junos-eznc
+pyrsistent==0.17.3
+    # via jsonschema
+pyserial==3.4
+    # via
+    #   junos-eznc
+    #   netmiko
+pytest-custom-exit-code==0.3.0
+    # via -r requirements/pytest.txt
+pytest-helpers-namespace==2021.4.29
+    # via
+    #   -r requirements/pytest.txt
+    #   pytest-salt-factories
+    #   pytest-shell-utilities
+pytest-httpserver==1.0.8
+    # via -r requirements/pytest.txt
+pytest-salt-factories==1.0.1
+    # via -r requirements/pytest.txt
+pytest-shell-utilities==1.8.0
+    # via pytest-salt-factories
+pytest-skip-markers==1.5.0
+    # via
+    #   pytest-salt-factories
+    #   pytest-shell-utilities
+    #   pytest-system-statistics
+pytest-subtests==0.4.0
+    # via -r requirements/pytest.txt
+pytest-system-statistics==1.0.2
+    # via pytest-salt-factories
+pytest-timeout==2.3.1
+    # via -r requirements/pytest.txt
+pytest==8.1.1
+    # via
+    #   -r requirements/pytest.txt
+    #   pytest-custom-exit-code
+    #   pytest-helpers-namespace
+    #   pytest-salt-factories
+    #   pytest-shell-utilities
+    #   pytest-skip-markers
+    #   pytest-subtests
+    #   pytest-system-statistics
+    #   pytest-timeout
 python-consul==1.1.0
     # via -r requirements/static/ci/linux.in
 python-telegram-bot==20.5 ; python_version > "3.5"
@@ -122,7 +306,11 @@ pyyaml==6.0.1
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   -r requirements/base.txt
-    #   ansible-core
+    #   clustershell
+    #   junos-eznc
+    #   kubernetes
+    #   napalm
+    #   pytest-salt-factories
     #   yamllint
 pyzmq==23.2.0
     # via -r requirements/zeromq.txt
@@ -136,22 +324,91 @@ requests==2.31.0
     #   -r requirements/base.txt
     #   python-consul
     #   twilio
-resolvelib==1.0.1
-    # via ansible-core
+    #   vcert
+responses==0.10.6
+    # via moto
+rfc3987==1.3.8
+    # via -r requirements/static/ci/common.in
+rpm-vercmp==0.1.2
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/pkg/linux.in
+rsa==4.7.2
+    # via google-auth
+s3transfer==0.5.2
+    # via boto3
+scp==0.13.2
+    # via
+    #   junos-eznc
+    #   napalm
+    #   netmiko
+semantic-version==2.9.0
+    # via etcd3-py
+setproctitle==1.3.2
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/pkg/linux.in
 six==1.16.0
-    # via python-consul
-slack-bolt==1.18.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   apscheduler
+    #   cassandra-driver
+    #   cheroot
+    #   etcd3-py
+    #   genshi
+    #   geomet
+    #   jsonschema
+    #   junos-eznc
+    #   kazoo
+    #   kubernetes
+    #   more-itertools
+    #   ncclient
+    #   python-consul
+    #   python-dateutil
+    #   pyvmomi
+    #   responses
+    #   textfsm
+    #   transitions
+    #   vcert
+    #   virtualenv
+    #   websocket-client
+slack-bolt==1.15.5
     # via -r requirements/static/ci/linux.in
 slack-sdk==3.22.0
     # via slack-bolt
 smmap==5.0.1
     # via gitdb
-sniffio==1.3.0
+sqlparse==0.5.0
+    # via -r requirements/static/ci/common.in
+strict-rfc3339==0.7
+    # via -r requirements/static/ci/common.in
+tempora==4.1.1
     # via
-    #   anyio
-    #   httpcore
-    #   httpx
-twilio==8.9.0
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   portend
+terminal==0.4.0
+    # via ntc-templates
+textfsm==1.1.0
+    # via
+    #   -r requirements/static/ci/common.in
+    #   napalm
+    #   netmiko
+    #   ntc-templates
+timelib==0.2.5
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/pkg/linux.in
+toml==0.10.2
+    # via -r requirements/static/ci/common.in
+tomli==2.0.1
+    # via pytest
+tornado==6.1
+    # via python-telegram-bot
+transitions==0.8.9
+    # via junos-eznc
+trustme==1.1.0
+    # via -r requirements/pytest.txt
+twilio==7.9.2
     # via -r requirements/static/ci/linux.in
 urllib3==1.26.6
     # via requests

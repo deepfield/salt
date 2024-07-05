@@ -1,6 +1,7 @@
 """
 Check salt code base for for missing or wrong docstrings.
 """
+
 # Skip mypy checks since it will follow into Salt which doesn't yet have proper types defined
 # mypy: ignore-errors
 # pylint: disable=resource-leakage,broad-except,3rd-party-module-not-gated
@@ -10,13 +11,13 @@ import ast
 import os
 import pathlib
 import re
+import subprocess
 import sys
 from typing import TYPE_CHECKING
 
 from ptscripts import Context, command_group
 
 import tools.utils
-from salt.version import SaltStackVersion
 from tools.precommit import SALT_INTERNAL_LOADERS_PATHS
 
 SALT_CODE_DIR = tools.utils.REPO_ROOT / "salt"
@@ -750,7 +751,6 @@ MISSING_EXAMPLES = {
         "delete_advanced_configs",
         "get_vm",
     ],
-    "salt/modules/win_pkg.py": ["get_package_info"],
     "salt/modules/win_timezone.py": ["zone_compare"],
     "salt/modules/zk_concurrency.py": [
         "lock",
@@ -831,8 +831,7 @@ def annotate(
     # Print it to stdout so that the GitHub runner pick's it up and adds the annotation
     ctx.print(
         f"::{kind} file={fpath},line={start_lineno},endLine={end_lineno}::{message}",
-        file=sys.stdout,
-        flush=True,
+        soft_wrap=True,
     )
 
 
@@ -1090,9 +1089,10 @@ def _check_valid_versions_on_docstrings(docstring):
         versions = [vs.strip() for vs in version.split(",")]
         bad_versions = []
         for vs in versions:
-            try:
-                SaltStackVersion.parse(vs)
-            except ValueError:
+            ret = subprocess.run(
+                [sys.executable, str(SALT_CODE_DIR / "version.py"), vs], check=False
+            )
+            if ret.returncode:
                 bad_versions.append(vs)
         if bad_versions:
             return vtype, ", ".join(bad_versions)

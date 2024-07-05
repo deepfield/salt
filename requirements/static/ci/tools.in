@@ -1,7 +1,5 @@
---constraint=../pkg/py{py_version}/{platform}.txt
-
 attrs
-python-tools-scripts >= 0.18.6
+python-tools-scripts >= 0.20.0
 boto3
 pyyaml
 jinja2

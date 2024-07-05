@@ -3,22 +3,11 @@ Module for OpenSCAP Management
 
 """
 
-
+import argparse
 import shlex
 import shutil
 import tempfile
 from subprocess import PIPE, Popen
-
-ArgumentParser = object
-
-try:
-    import argparse  # pylint: disable=minimum-python-version
-
-    ArgumentParser = argparse.ArgumentParser
-    HAS_ARGPARSE = True
-except ImportError:  # python 2.6
-    HAS_ARGPARSE = False
-
 
 _XCCDF_MAP = {
     "eval": {
@@ -32,15 +21,10 @@ _XCCDF_MAP = {
 }
 
 
-def __virtual__():
-    return HAS_ARGPARSE, "argparse module is required."
-
-
-class _ArgumentParser(ArgumentParser):
+class _ArgumentParser(argparse.ArgumentParser):
     def __init__(self, action=None, *args, **kwargs):
         super().__init__(*args, prog="oscap", **kwargs)
         self.add_argument("action", choices=["eval"])
-        add_arg = None
         for params, kwparams in _XCCDF_MAP["eval"]["parser_arguments"]:
             self.add_argument(*params, **kwparams)
 
@@ -92,8 +76,8 @@ def xccdf(params):
         tempdir = tempfile.mkdtemp()
         proc = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE, cwd=tempdir)
         (stdoutdata, error) = proc.communicate()
-        success = _OSCAP_EXIT_CODES_MAP[proc.returncode]
         returncode = proc.returncode
+        success = _OSCAP_EXIT_CODES_MAP.get(returncode, False)
         if success:
             __salt__["cp.push_dir"](tempdir)
             shutil.rmtree(tempdir, ignore_errors=True)
