@@ -96,7 +96,7 @@ contextvars==2.4
     #   -r requirements/base.txt
 croniter==2.0.5 ; sys_platform != "win32"
     # via
-    #   -c requirements/static/ci/../pkg/py3.10/linux.txt
+    #   -c requirements/static/pkg/py3.10/linux.txt
     #   -r requirements/base.txt
 cryptography==42.0.5
     # via
@@ -198,8 +198,8 @@ jaraco-functools==2.0
     #   tempora
 jaraco-text==3.5.1
     # via
-    #   -c requirements/static/ci/../pkg/py3.10/linux.txt
-    #   jaraco.collections
+    #   -c requirements/static/pkg/py3.10/linux.txt
+    #   jaraco-collections
 jinja2==3.1.4
     # via
     #   -c requirements/static/pkg/py3.10/linux.txt
@@ -406,11 +406,8 @@ python-telegram-bot==20.5
     # via -r requirements/static/ci/linux.in
 pytz==2022.1
     # via
-    #   -c requirements/static/ci/../pkg/py3.10/linux.txt
-    #   apscheduler
+    #   -c requirements/static/pkg/py3.10/linux.txt
     #   croniter
-    #   moto
-    #   python-telegram-bot
     #   tempora
     #   twilio
 pyvmomi==8.0.2.0
@@ -432,10 +429,14 @@ pyzmq==23.2.0
     #   -c requirements/static/pkg/py3.10/linux.txt
     #   -r requirements/zeromq.txt
     #   pytest-salt-factories
-redis-py-cluster==2.1.3
-    # via -r requirements/static/ci/linux.in
-redis==3.5.3
-    # via redis-py-cluster
+redis==5.0.1
+    # via
+    #   -c requirements/static/pkg/py3.10/linux.txt
+    #   -r requirements/deepfield.txt
+referencing==0.35.1
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
 requests==2.32.3 ; python_version >= "3.8"
     # via
     #   -c requirements/static/pkg/py3.10/linux.txt
