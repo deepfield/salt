@@ -1,3 +1,4 @@
+pyinotify ==0.9.6
 psycopg2 ==2.9.7
 GitPython ==3.1.37
 redis ==5.0.1
