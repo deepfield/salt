@@ -79,6 +79,8 @@ pycparser==2.21 ; python_version >= "3.9"
     #   cffi
 pycryptodomex==3.19.1
     # via -r requirements/crypto.txt
+pyinotify==0.9.6
+    # via -r requirements/deepfield.txt
 pyopenssl==24.0.0
     # via -r requirements/static/pkg/linux.in
 python-dateutil==2.8.1
