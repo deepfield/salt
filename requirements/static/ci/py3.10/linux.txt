@@ -441,7 +441,6 @@ requests==2.32.3 ; python_version >= "3.8"
     # via
     #   -c requirements/static/pkg/py3.10/linux.txt
     #   -r requirements/base.txt
-    #   -r requirements/static/ci/common.in
     #   apache-libcloud
     #   docker
     #   etcd3-py
