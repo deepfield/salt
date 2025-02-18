@@ -1,5 +1,6 @@
-boto3 ==1.35.77
 GitPython ==3.1.37
+boto3 ==1.35.77
+docker ==7.1.0
 keeper-secrets-manager-core ==16.6.6
 psycopg2 ==2.9.7
 pyinotify ==0.9.6
