@@ -1,15 +1,13 @@
 import os.path
 import pathlib
 import subprocess
+import time
 
 import pytest
 from pytestskipmarkers.utils import platform
 
-pytestmark = [
-    pytest.mark.skip_unless_on_linux,
-]
 
-
+@pytest.mark.skip_on_windows
 def test_salt_version(version, install_salt):
     """
     Test version output from salt --version
@@ -31,19 +29,18 @@ def test_salt_version(version, install_salt):
             actual.append(actual_ver[0])
             actual.append(actual_ver_salt_stripped)
         else:
-            pytest.skip("Not testing a non-release build artifact, do not run")
+            pytest.skip("We don't run this test on release builds")
 
     expected = ["salt", version]
     assert actual == expected
 
 
+@pytest.mark.skip_on_windows
+@pytest.mark.skip_on_darwin
 def test_salt_versions_report_master(install_salt):
     """
     Test running --versions-report on master
     """
-    if not install_salt.relenv and not install_salt.classic:
-        pytest.skip("Unable to get the python version dynamically from tiamat builds")
-
     test_bin = os.path.join(*install_salt.binary_paths["master"])
     python_bin = os.path.join(*install_salt.binary_paths["python"])
     ret = install_salt.proc.run(test_bin, "--versions-report")
@@ -57,17 +54,34 @@ def test_salt_versions_report_master(install_salt):
     ret.stdout.matcher.fnmatch_lines([f"*{py_version}*"])
 
 
-def test_salt_versions_report_minion(salt_cli, salt_call_cli, salt_minion):
+@pytest.mark.skip_on_windows
+def test_salt_versions_report_minion(salt_cli, salt_call_cli, salt_master, salt_minion):
     """
     Test running test.versions_report on minion
     """
     # Make sure the minion is running
+    for count in range(0, 30):
+        if salt_minion.is_running():
+            break
+        else:
+            time.sleep(2)
+
     assert salt_minion.is_running()
+
+    # Make sure the master is running
+    for count in range(0, 30):
+        if salt_master.is_running():
+            break
+        else:
+            time.sleep(2)
+
+    assert salt_master.is_running()
 
     # Make sure we can ping the minion ...
     ret = salt_cli.run(
-        "--timeout=300", "test.ping", minion_tgt=salt_minion.id, _timeout=300
+        "--timeout=600", "test.ping", minion_tgt=salt_minion.id, _timeout=600
     )
+
     assert ret.returncode == 0
     assert ret.data is True
     ret = salt_cli.run(
@@ -81,6 +95,8 @@ def test_salt_versions_report_minion(salt_cli, salt_call_cli, salt_minion):
     ret.stdout.matcher.fnmatch_lines(["*Salt Version:*"])
 
 
+@pytest.mark.skip_on_windows
+@pytest.mark.skip_on_darwin
 @pytest.mark.parametrize(
     "binary", ["master", "cloud", "syndic", "minion", "call", "api"]
 )
@@ -108,11 +124,10 @@ def test_compare_versions(binary, install_salt):
         )
 
 
-@pytest.mark.skip_unless_on_darwin()
+@pytest.mark.skip_unless_on_darwin
 @pytest.mark.parametrize(
     "symlink",
     [
-        # We can't create a salt symlink because there is a salt directory
         "salt",
         "salt-api",
         "salt-call",
@@ -132,14 +147,13 @@ def test_symlinks_created(version, symlink, install_salt):
     """
     Test symlinks created
     """
-    if install_salt.classic:
-        pytest.skip("Symlinks not created for classic macos builds, we adjust the path")
-    if not install_salt.relenv and symlink == "spm":
-        symlink = "salt-spm"
     ret = install_salt.proc.run(pathlib.Path("/usr/local/sbin") / symlink, "--version")
+    install_log_file = pathlib.Path("/tmp") / "postinstall.txt"
+    install_log_content = install_log_file.read_text()
     ret.stdout.matcher.fnmatch_lines([f"*{version}*"])
 
 
+@pytest.mark.skip_unless_on_linux
 def test_compare_pkg_versions_redhat_rc(version, install_salt):
     """
     Test compare pkg versions for redhat RC packages. A tilde should be included

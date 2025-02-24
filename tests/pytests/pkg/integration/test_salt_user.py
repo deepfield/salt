@@ -2,19 +2,22 @@ import os
 import pathlib
 import subprocess
 import sys
+import time
 
 import packaging.version
 import psutil
 import pytest
 from saltfactories.utils.tempfiles import temp_directory
 
-pytestmark = [pytest.mark.skip_unless_on_linux]
+pytestmark = [
+    pytest.mark.skip_unless_on_linux,
+]
 
 
 @pytest.fixture
 def salt_systemd_setup(
-    salt_call_cli,
     install_salt,
+    salt_call_cli,
 ):
     """
     Fixture to set systemd for salt packages to enabled and active
@@ -65,8 +68,12 @@ def pkg_paths_salt_user():
         "/var/log/salt/master",
         "/var/log/salt/api",
         "/var/log/salt/key",
+        "/var/log/salt/syndic",
         "/var/cache/salt/master",
         "/var/run/salt/master",
+        "/run/salt-master.pid",
+        "/run/salt-syndic.pid",
+        "/run/salt-api.pid",
     ]
 
 
@@ -81,16 +88,16 @@ def pkg_paths_salt_user_exclusions():
     return paths
 
 
-@pytest.fixture(autouse=True)
-def _skip_on_non_relenv(install_salt):
-    if not install_salt.relenv:
-        pytest.skip("The salt user only exists on relenv versions of salt")
-
-
-def test_salt_user_master(salt_master, install_salt):
+def test_salt_user_master(install_salt, salt_master):
     """
     Test the correct user is running the Salt Master
     """
+    for count in range(0, 30):
+        if salt_master.is_running():
+            break
+        else:
+            time.sleep(2)
+
     assert salt_master.is_running()
 
     match = False
@@ -162,6 +169,7 @@ def test_pkg_paths(
     pkg_paths,
     pkg_paths_salt_user,
     pkg_paths_salt_user_exclusions,
+    salt_call_cli,
 ):
     """
     Test package paths ownership
@@ -178,6 +186,7 @@ def test_pkg_paths(
         assert pkg_path.exists()
         for dirpath, sub_dirs, files in os.walk(pkg_path):
             path = pathlib.Path(dirpath)
+
             # Directories owned by salt:salt or their subdirs/files
             if (
                 str(path) in pkg_paths_salt_user or str(path) in salt_user_subdirs
@@ -210,10 +219,10 @@ def test_pkg_paths(
 
 @pytest.mark.skip_if_binaries_missing("logrotate")
 def test_paths_log_rotation(
+    install_salt,
     salt_master,
     salt_minion,
     salt_call_cli,
-    install_salt,
     pkg_tests_account,
 ):
     """
@@ -405,3 +414,7 @@ def test_paths_log_rotation(
 
                                 bkup_count += 1
                                 assert ret.returncode == 0
+
+    # ensure leave salt_master running
+    salt_master.start()
+    assert salt_master.is_running() is True

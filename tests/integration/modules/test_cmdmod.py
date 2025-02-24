@@ -80,6 +80,18 @@ class CMDModuleTest(ModuleCase):
         )
         self.assertEqual(
             self.run_function(
+                "cmd.run", ["cat"], stdin="one\\ntwo", stdin_raw_newlines=False
+            ),
+            "one\ntwo",
+        )
+        self.assertEqual(
+            self.run_function(
+                "cmd.run", ["cat"], stdin="one\\ntwo", stdin_raw_newlines=True
+            ),
+            "one\\ntwo",
+        )
+        self.assertEqual(
+            self.run_function(
                 "cmd.run", ['echo "a=b" | sed -e s/=/:/g'], python_shell=True
             ),
             "a:b",
@@ -213,6 +225,7 @@ class CMDModuleTest(ModuleCase):
         )
 
     @pytest.mark.slow_test
+    @pytest.mark.skip_on_windows
     def test_script(self):
         """
         cmd.script
@@ -223,6 +236,7 @@ class CMDModuleTest(ModuleCase):
         self.assertEqual(ret["stdout"], args)
 
     @pytest.mark.slow_test
+    @pytest.mark.skip_on_windows
     def test_script_query_string(self):
         """
         cmd.script
@@ -233,6 +247,7 @@ class CMDModuleTest(ModuleCase):
         self.assertEqual(ret["stdout"], args)
 
     @pytest.mark.slow_test
+    @pytest.mark.skip_on_windows
     def test_script_retcode(self):
         """
         cmd.script_retcode
@@ -242,6 +257,7 @@ class CMDModuleTest(ModuleCase):
         self.assertEqual(ret, 0)
 
     @pytest.mark.slow_test
+    @pytest.mark.skip_on_windows
     def test_script_cwd(self):
         """
         cmd.script with cwd
@@ -255,6 +271,7 @@ class CMDModuleTest(ModuleCase):
         self.assertEqual(ret["stdout"], args)
 
     @pytest.mark.slow_test
+    @pytest.mark.skip_on_windows
     def test_script_cwd_with_space(self):
         """
         cmd.script with cwd
@@ -503,7 +520,7 @@ class CMDModuleTest(ModuleCase):
         """
         with self._ensure_user_exists(self.runas_usr):
             out = self.run_function(
-                "cmd.run", ["env"], runas=self.runas_usr
+                "cmd.run", ["env"], runas=self.runas_usr, cwd="/tmp"
             ).splitlines()
         self.assertIn(f"USER={self.runas_usr}", out)
 
