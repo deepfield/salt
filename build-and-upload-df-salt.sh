@@ -35,4 +35,6 @@ ldconfig
 # build the debian. This is using the command dpkg-buildpackage which uses the rules file at pkg/debian/rules (this repo)
 DEB_BUILD_MAINT_OPTIONS=optimize=-lto /saltenv/bin/tools pkg build deb --relenv-version 0.18.0 --python-version 3.10.15 --arch x86_64
 
-aws s3 cp / s3://dependencies.deepfield.net/salt/$ORIGINAL_SALT_VERSION/debian/nodist/ --recursive --exclude "*" --include "*.deb"
+mkdir debs
+cp ../*.deb debs
+aws s3 cp debs s3://dependencies.deepfield.net/salt/$ORIGINAL_SALT_VERSION/debian/nodist/ --recursive --exclude "*" --include "*.deb"
