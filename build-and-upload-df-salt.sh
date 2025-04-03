@@ -10,6 +10,8 @@
 if [ -z "$1" ]; then
   echo "Error: Missing version parameter."
   exit 1
+fi
+
 
 # version string parameter, should look something like 3006.9+2.df where 3006.9 follows saltstack versioning, and +2.df is a number we should increment each time we want to make a new patch
 VERSION=$1
