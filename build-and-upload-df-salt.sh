@@ -29,7 +29,7 @@ relenv create --python=3.10.15 /saltenv
 /saltenv/bin/tools changelog update-deb ${VERSION}
 
 # ensure shared libraries from our venv are accessible
-echo "/salt/relenv/lib" > /etc/ld.so.conf.d/salt.conf
+echo "$(pwd)/relenv/lib" > /etc/ld.so.conf.d/salt.conf
 ldconfig
 
 # build the debian. This is using the command dpkg-buildpackage which uses the rules file at pkg/debian/rules (this repo)
