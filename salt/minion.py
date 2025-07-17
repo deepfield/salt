@@ -881,13 +881,15 @@ class MinionBase:
                                 self.opts["master"] = proto_data["master"]
                                 return
 
-    def _return_retry_timer(self):
+    def _return_retry_timer(self, max=False):
         """
         Based on the minion configuration, either return a randomized timer or
         just return the value of the return_retry_timer.
         """
         msg = "Minion return retry timer set to %s seconds"
         if self.opts.get("return_retry_timer_max"):
+            if max:
+                return self.opts["return_retry_timer_max"]
             try:
                 random_retry = random.randint(
                     self.opts["return_retry_timer"], self.opts["return_retry_timer_max"]
@@ -1644,8 +1646,10 @@ class Minion(MinionBase):
                 tag=f"__master_req_channel_return/{request_id}",
                 wait=timeout,
             )
-            log.trace("Reply from main %s", request_id)
-            return ret["ret"]
+            if ret:
+                log.trace("Reply from main %s", request_id)
+                return ret["ret"]
+            raise TimeoutError("Request timed out")
 
     @salt.ext.tornado.gen.coroutine
     def _send_req_async(self, load, timeout):
@@ -2152,7 +2156,11 @@ class Minion(MinionBase):
             else:
                 log.warning("The metadata parameter must be a dictionary. Ignoring.")
         if minion_instance.connected:
-            minion_instance._return_pub(ret)
+            minion_instance._return_pub(
+                ret,
+                timeout=minion_instance.opts["return_retry_tries"]
+                * minion_instance._return_retry_timer(max=True),
+            )
 
         # Add default returners from minion config
         # Should have been converted to comma-delimited string already
@@ -2506,7 +2514,7 @@ class Minion(MinionBase):
                 else:
                     data["fun"] = "state.highstate"
                     data["arg"] = []
-                self._handle_decoded_payload(data)
+                self.io_loop.add_callback(self._handle_decoded_payload, data)
 
     def _refresh_grains_watcher(self, refresh_interval_in_minutes):
         """
@@ -2527,6 +2535,7 @@ class Minion(MinionBase):
                 }
             )
 
+    @salt.ext.tornado.gen.coroutine
     def _fire_master_minion_start(self):
         include_grains = False
         if self.opts["start_event_grains"]:
@@ -2534,13 +2543,13 @@ class Minion(MinionBase):
         # Send an event to the master that the minion is live
         if self.opts["enable_legacy_startup_events"]:
             # Old style event. Defaults to False in 3001 release.
-            self._fire_master_main(
+            yield self._fire_master_main(
                 "Minion {} started at {}".format(self.opts["id"], time.asctime()),
                 "minion_start",
                 include_startup_grains=include_grains,
             )
         # send name spaced event
-        self._fire_master_main(
+        yield self._fire_master_main(
             "Minion {} started at {}".format(self.opts["id"], time.asctime()),
             tagify([self.opts["id"], "start"], "minion"),
             include_startup_grains=include_grains,
@@ -2975,7 +2984,7 @@ class Minion(MinionBase):
                     # make the schedule to use the new 'functions' loader
                     self.schedule.functions = self.functions
                     self.pub_channel.on_recv(self._handle_payload)
-                    self._fire_master_minion_start()
+                    yield self._fire_master_minion_start()
                     log.info("Minion is ready to receive requests!")
 
                     # update scheduled job to run with the new master addr
@@ -3224,7 +3233,7 @@ class Minion(MinionBase):
                 self.setup_scheduler(before_connect=True)
             self.sync_connect_master()
         if self.connected:
-            self._fire_master_minion_start()
+            self.io_loop.add_callback(self._fire_master_minion_start)
             log.info("Minion is ready to receive requests!")
 
         # Make sure to gracefully handle SIGUSR1
@@ -3267,7 +3276,8 @@ class Minion(MinionBase):
                                     "minion is running under an init system."
                                 )
 
-                    self._fire_master_main(
+                    self.io_loop.add_callback(
+                        self._fire_master_main,
                         "ping",
                         "minion_ping",
                         timeout_handler=ping_timeout_handler,
@@ -3864,7 +3874,6 @@ class SyndicManager(MinionBase):
                     "events": events,
                     "pretag": tagify(self.opts["id"], base="syndic"),
                     "timeout": self._return_retry_timer(),
-                    "sync": True,  # Sync needs to be true unless being called from a coroutine
                 },
             )
         if self.delayed:

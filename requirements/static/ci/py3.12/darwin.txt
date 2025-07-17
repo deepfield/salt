@@ -25,17 +25,21 @@ attrs==23.1.0
     #   pytest-shell-utilities
     #   pytest-skip-markers
     #   pytest-system-statistics
+autocommand==2.2.2
+    # via
+    #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
+    #   jaraco.text
 backports.entry-points-selectable==1.1.0
     # via virtualenv
 bcrypt==4.1.2
     # via -r requirements/static/ci/common.in
-boto3==1.21.46
+boto3==1.39.3
     # via
     #   -r requirements/static/ci/common.in
     #   moto
 boto==2.49.0
     # via -r requirements/static/ci/common.in
-botocore==1.24.46
+botocore==1.39.3
     # via
     #   boto3
     #   moto
@@ -90,7 +94,6 @@ cryptography==42.0.5
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
     #   -r requirements/base.txt
-    #   -r requirements/darwin.txt
     #   etcd3-py
     #   moto
     #   pyopenssl
@@ -166,17 +169,25 @@ jaraco.collections==3.4.0
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
     #   cherrypy
-jaraco.functools==2.0
+jaraco.context==6.0.1
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
+    #   jaraco.text
+jaraco.functools==4.2.1
+    # via
+    #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
+    #   -r requirements/base.txt
+    #   -r requirements/darwin.txt
     #   cheroot
     #   jaraco.text
     #   tempora
-jaraco.text==3.5.1
+jaraco.text==4.0.0
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
+    #   -r requirements/base.txt
+    #   -r requirements/darwin.txt
     #   jaraco.collections
-jinja2==3.1.4
+jinja2==3.1.6
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
     #   -r requirements/base.txt
@@ -212,21 +223,22 @@ markupsafe==2.1.2
     #   -r requirements/base.txt
     #   jinja2
     #   mako
-    #   moto
     #   werkzeug
 mercurial==6.0.1
     # via -r requirements/static/ci/darwin.in
 mock==5.1.0
     # via -r requirements/pytest.txt
-more-itertools==8.2.0
+more-itertools==10.7.0
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
+    #   -r requirements/darwin.txt
     #   -r requirements/pytest.txt
     #   cheroot
     #   cherrypy
     #   jaraco.classes
     #   jaraco.functools
-moto==3.0.1
+    #   jaraco.text
+moto==5.1.6
     # via -r requirements/static/ci/common.in
 msgpack==1.0.2
     # via
@@ -239,7 +251,7 @@ multidict==6.0.2
     #   yarl
 oscrypto==1.2.0
     # via certvalidator
-packaging==22.0
+packaging==24.0
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
     #   -r requirements/base.txt
@@ -353,7 +365,6 @@ pytz==2022.1
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
     #   croniter
-    #   moto
     #   tempora
 pyvmomi==6.7.1.2018.12
     # via -r requirements/static/ci/common.in
@@ -364,6 +375,7 @@ pyyaml==6.0.1
     #   clustershell
     #   kubernetes
     #   pytest-salt-factories
+    #   responses
     #   yamllint
     #   yamlordereddictloader
 pyzmq==25.1.2 ; sys_platform == "darwin"
@@ -384,13 +396,13 @@ requests==2.32.3 ; python_version >= "3.10"
     #   responses
     #   vcert
     #   vultr
-responses==0.10.6
+responses==0.25.7
     # via moto
 rfc3987==1.3.8
     # via -r requirements/static/ci/common.in
 rsa==4.7.2
     # via google-auth
-s3transfer==0.5.2
+s3transfer==0.13.0
     # via boto3
 semantic-version==2.9.0
     # via etcd3-py
@@ -410,7 +422,6 @@ six==1.16.0
     #   kubernetes
     #   python-dateutil
     #   pyvmomi
-    #   responses
     #   textfsm
     #   vcert
     #   virtualenv
@@ -439,14 +450,16 @@ trustme==1.1.0
     # via -r requirements/pytest.txt
 typing-extensions==4.2.0
     # via pytest-system-statistics
-urllib3==1.26.18
+urllib3==2.5.0 ; python_version >= "3.10"
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
+    #   -r requirements/base.txt
     #   botocore
     #   docker
     #   kubernetes
     #   python-etcd
     #   requests
+    #   responses
 vcert==0.7.4 ; sys_platform != "win32"
     # via -r requirements/static/ci/common.in
 virtualenv==20.7.2
@@ -479,9 +492,10 @@ zc.lockfile==2.0
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
     #   cherrypy
-zipp==3.12.0
+zipp==3.21.0
     # via
     #   -c requirements/static/ci/../pkg/py3.12/darwin.txt
+    #   -r requirements/darwin.txt
     #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:

@@ -28,19 +28,27 @@ certifi==2023.7.22
     #   pytest-shell-utilities
     #   pytest-skip-markers
     #   pytest-system-statistics
+autocommand==2.2.2
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   jaraco.text
 backports.entry-points-selectable==1.1.0
     # via virtualenv
+backports.tarfile==1.2.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   jaraco.context
 bcrypt==4.1.2
     # via
     #   -r requirements/static/ci/common.in
     #   paramiko
-boto3==1.21.46
+boto3==1.39.3
     # via
     #   -r requirements/static/ci/common.in
     #   moto
 boto==2.49.0
     # via -r requirements/static/ci/common.in
-botocore==1.24.46
+botocore==1.39.3
     # via
     #   boto3
     #   moto
@@ -68,6 +76,25 @@ charset-normalizer==2.0.12
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   requests
+cheetah3==3.2.6.post2
+    # via -r requirements/static/ci/common.in
+cheroot==8.5.2
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   cherrypy
+cherrypy==18.10.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/static/ci/common.in
+    #   -r requirements/static/pkg/linux.in
+ciscoconfparse==1.5.19
+    # via napalm
+click==7.1.1
+    # via geomet
+clustershell==1.8.3
+    # via -r requirements/static/ci/common.in
+colorama==0.4.3
+    # via ciscoconfparse
 contextvars==2.4
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
@@ -148,17 +175,23 @@ jaraco.collections==3.4.0
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   cherrypy
-jaraco.functools==2.0
+jaraco.context==6.0.1
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   jaraco.text
+jaraco.functools==4.2.1
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/base.txt
     #   cheroot
     #   jaraco.text
     #   tempora
-jaraco.text==3.5.1
+jaraco.text==4.0.0
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/base.txt
     #   jaraco.collections
-jinja2==3.1.4
+jinja2==3.1.6
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   -r requirements/base.txt
@@ -174,15 +207,46 @@ markupsafe==2.1.2
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   -r requirements/base.txt
     #   jinja2
-mercurial==6.5.2
+    #   mako
+    #   werkzeug
+mercurial==6.0.1
     # via -r requirements/static/ci/linux.in
+mock==5.1.0
+    # via -r requirements/pytest.txt
+more-itertools==10.7.0
+    # via
+    #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/pytest.txt
+    #   -r requirements/static/pkg/linux.in
+    #   cheroot
+    #   cherrypy
+    #   jaraco.classes
+    #   jaraco.functools
+    #   jaraco.text
+moto==5.1.6
+    # via -r requirements/static/ci/common.in
 msgpack==1.0.2
     # via -r requirements/base.txt
 multidict==6.0.4
     # via
     #   aiohttp
     #   yarl
-packaging==22.0
+napalm==3.1.0 ; sys_platform != "win32" and python_version < "3.10"
+    # via -r requirements/static/ci/common.in
+ncclient==0.6.4
+    # via junos-eznc
+netaddr==0.7.19
+    # via
+    #   junos-eznc
+    #   napalm
+    #   pyeapi
+netmiko==3.2.0
+    # via napalm
+ntc-templates==1.4.1
+    # via junos-eznc
+oscrypto==1.2.0
+    # via certvalidator
+packaging==24.0
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   -r requirements/base.txt
@@ -310,7 +374,6 @@ pytz==2022.1
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
     #   apscheduler
     #   croniter
-    #   moto
     #   python-telegram-bot
     #   tempora
     #   twilio
@@ -325,6 +388,7 @@ pyyaml==6.0.1
     #   kubernetes
     #   napalm
     #   pytest-salt-factories
+    #   responses
     #   yamllint
 pyzmq==23.2.0
     # via -r requirements/zeromq.txt
@@ -337,7 +401,7 @@ requests==2.31.0 ; python_version < "3.10"
     #   python-consul
     #   twilio
     #   vcert
-responses==0.10.6
+responses==0.25.7
     # via moto
 rfc3987==1.3.8
     # via -r requirements/static/ci/common.in
@@ -347,7 +411,7 @@ rpm-vercmp==0.1.2
     #   -r requirements/static/pkg/linux.in
 rsa==4.7.2
     # via google-auth
-s3transfer==0.5.2
+s3transfer==0.13.0
     # via boto3
 scp==0.13.2
     # via
@@ -373,12 +437,10 @@ six==1.16.0
     #   junos-eznc
     #   kazoo
     #   kubernetes
-    #   more-itertools
     #   ncclient
     #   python-consul
     #   python-dateutil
     #   pyvmomi
-    #   responses
     #   textfsm
     #   transitions
     #   vcert
@@ -428,14 +490,16 @@ typing-extensions==4.8.0
     #   pytest-system-statistics
 tzlocal==3.0
     # via apscheduler
-urllib3==1.26.18
+urllib3==1.26.20 ; python_version < "3.10"
     # via
     #   -c requirements/static/ci/../pkg/py3.9/linux.txt
+    #   -r requirements/base.txt
     #   botocore
     #   docker
     #   kubernetes
     #   python-etcd
     #   requests
+    #   responses
 vcert==0.7.4 ; sys_platform != "win32"
     # via -r requirements/static/ci/common.in
 virtualenv==20.7.2

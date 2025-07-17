@@ -12,9 +12,11 @@ import hashlib
 import hmac
 import logging
 import os
+import pathlib
 import random
 import stat
 import sys
+import tempfile
 import time
 import traceback
 import uuid
@@ -643,6 +645,7 @@ class AsyncAuth:
             creds = AsyncAuth.creds_map[key]
             self._creds = creds
             self._crypticle = Crypticle(self.opts, creds["aes"])
+            self._session_crypticle = Crypticle(self.opts, creds["session"])
             self._authenticate_future = salt.ext.tornado.concurrent.Future()
             self._authenticate_future.set_result(True)
         else:
@@ -660,6 +663,10 @@ class AsyncAuth:
                 continue
             setattr(result, key, copy.deepcopy(self.__dict__[key], memo))
         return result
+
+    @property
+    def session_crypticle(self):
+        return self._session_crypticle
 
     @property
     def creds(self):
@@ -802,11 +809,16 @@ class AsyncAuth:
                     AsyncAuth.creds_map[key] = creds
                     self._creds = creds
                     self._crypticle = Crypticle(self.opts, creds["aes"])
-                elif self._creds["aes"] != creds["aes"]:
+                    self._session_crypticle = Crypticle(self.opts, creds["session"])
+                elif (
+                    self._creds["aes"] != creds["aes"]
+                    or self._creds["session"] != creds["session"]
+                ):
                     log.debug("%s The master's aes key has changed.", self)
                     AsyncAuth.creds_map[key] = creds
                     self._creds = creds
                     self._crypticle = Crypticle(self.opts, creds["aes"])
+                    self._session_crypticle = Crypticle(self.opts, creds["session"])
 
                 self._authenticate_future.set_result(
                     True
@@ -894,7 +906,6 @@ class AsyncAuth:
         clear_signed_data = payload["load"]
         clear_signature = payload["sig"]
         payload = salt.payload.loads(clear_signed_data)
-
         if "pub_key" in payload:
             auth["aes"] = self.verify_master(
                 payload, master_pub="token" in sign_in_payload
@@ -912,6 +923,11 @@ class AsyncAuth:
                     m_pub_fn,
                 )
                 raise SaltClientError("Invalid master key")
+
+            key = self.get_keys()
+            auth["session"] = key.decrypt(
+                payload["session"], self.opts["encryption_algorithm"]
+            )
 
         master_pubkey_path = os.path.join(self.opts["pki_dir"], self.mpub)
         if os.path.exists(master_pubkey_path) and not verify_signature(
@@ -1462,10 +1478,15 @@ class SAuth(AsyncAuth):
                 log.error("%s Got new master aes key.", self)
                 self._creds = creds
                 self._crypticle = Crypticle(self.opts, creds["aes"])
-            elif self._creds["aes"] != creds["aes"]:
+                self._session_crypticle = Crypticle(self.opts, creds["session"])
+            elif (
+                self._creds["aes"] != creds["aes"]
+                or self._creds["session"] != creds["session"]
+            ):
                 log.error("%s The master's aes key has changed.", self)
                 self._creds = creds
                 self._crypticle = Crypticle(self.opts, creds["aes"])
+                self._session_crypticle = Crypticle(self.opts, creds["session"])
 
     def sign_in(self, timeout=60, safe=True, tries=1, channel=None):
         """
@@ -1546,6 +1567,24 @@ class Crypticle:
         b64key = b64key.decode("utf-8")
         # Return data must be a base64-encoded string, not a unicode type
         return b64key.replace("\n", "")
+
+    @classmethod
+    def write_key(cls, path, key_size=192):
+        directory = pathlib.Path(path).parent
+        with salt.utils.files.set_umask(0o177):
+            fd, tmp = tempfile.mkstemp(dir=directory, prefix="aes")
+            os.close(fd)
+            with salt.utils.files.fopen(tmp, "w") as fp:
+                fp.write(cls.generate_key_string(key_size))
+            os.rename(tmp, path)
+
+    @classmethod
+    def read_key(cls, path):
+        try:
+            with salt.utils.files.fopen(path, "r") as fp:
+                return fp.read()
+        except FileNotFoundError:
+            pass
 
     @classmethod
     def extract_keys(cls, key_string, key_size):

@@ -1841,6 +1841,11 @@ def ci_test_onedir_pkgs(session):
         "--pkg-system-service",
     ]
 
+    # Upgrade and downgrade tests run with no-uninstall. The intergration tests
+    # will use the results of the upgrade downgrade tests. So, for upgrade
+    # tests the intergration tests will be testing the current version after
+    # and upgrade was performed. For downgrade tests, the integration tests are
+    # testing the previous version after a downgrade was performed.
     chunks = {
         "install": [],
         "upgrade": [
@@ -1906,7 +1911,7 @@ def ci_test_onedir_pkgs(session):
     except CommandFailed:
         if os.environ.get("RERUN_FAILURES", "0") == "0":
             # Don't rerun on failures
-            return
+            sys.exit(1)
 
         # Don't print the system information, not the test selection on reruns
         global PRINT_TEST_SELECTION
@@ -1934,6 +1939,8 @@ def ci_test_onedir_pkgs(session):
             on_rerun=True,
         )
 
+    # The upgrade/downgrad tests passed, now run the integration tests against
+    # the results.
     if chunk not in ("install", "download-pkgs"):
         cmd_args = chunks["install"]
         pytest_args = (
@@ -1955,7 +1962,7 @@ def ci_test_onedir_pkgs(session):
         except CommandFailed:
             if os.environ.get("RERUN_FAILURES", "0") == "0":
                 # Don't rerun on failures
-                return
+                sys.exit(1)
             cmd_args = chunks["install"]
             pytest_args = (
                 common_pytest_args[:]

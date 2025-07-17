@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import shutil
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from ptscripts import Context, command_group
@@ -25,6 +25,11 @@ from tools.utils import (
 
 log = logging.getLogger(__name__)
 
+PLATFORMS: list[Literal["linux", "macos", "windows"]] = [
+    "linux",
+    "macos",
+    "windows",
+]
 WORKFLOWS = tools.utils.REPO_ROOT / ".github" / "workflows"
 TEMPLATES = WORKFLOWS / "templates"
 
@@ -172,18 +177,6 @@ TEST_SALT_LISTING = PlatformDefinitions(
                 container="ghcr.io/saltstack/salt-ci-containers/testing:photon-5",
             ),
             Linux(
-                slug="ubuntu-20.04",
-                display_name="Ubuntu 20.04",
-                arch="x86_64",
-                container="ghcr.io/saltstack/salt-ci-containers/testing:ubuntu-20.04",
-            ),
-            Linux(
-                slug="ubuntu-20.04-arm64",
-                display_name="Ubuntu 20.04 Arm64",
-                arch="arm64",
-                container="ghcr.io/saltstack/salt-ci-containers/testing:ubuntu-20.04",
-            ),
-            Linux(
                 slug="ubuntu-22.04",
                 display_name="Ubuntu 22.04",
                 arch="x86_64",
@@ -214,9 +207,8 @@ TEST_SALT_LISTING = PlatformDefinitions(
             MacOS(slug="macos-15", display_name="macOS 15 (M1)", arch="arm64"),
         ],
         "windows": [
-            # Windows(slug="windows-2016", display_name="Windows 2016", arch="amd64"),
-            Windows(slug="windows-2019", display_name="Windows 2019", arch="amd64"),
             Windows(slug="windows-2022", display_name="Windows 2022", arch="amd64"),
+            Windows(slug="windows-2025", display_name="Windows 2025", arch="amd64"),
         ],
     }
 )
@@ -251,20 +243,22 @@ TEST_SALT_PKG_LISTING = PlatformDefinitions(
                 pkg_type="rpm",
                 container="ghcr.io/saltstack/salt-ci-containers/testing:rockylinux-9",
             ),
-            LinuxPkg(
-                slug="amazonlinux-2",
-                display_name="Amazon Linux 2",
-                arch="x86_64",
-                pkg_type="rpm",
-                container="ghcr.io/saltstack/salt-ci-containers/testing:amazonlinux-2",
-            ),
-            LinuxPkg(
-                slug="amazonlinux-2-arm64",
-                display_name="Amazon Linux 2 Arm64",
-                arch="arm64",
-                pkg_type="rpm",
-                container="ghcr.io/saltstack/salt-ci-containers/testing:amazonlinux-2",
-            ),
+            # Amazon linux 2 containers have degraded systemd so the package
+            # tests will not pass.
+            # LinuxPkg(
+            #     slug="amazonlinux-2",
+            #     display_name="Amazon Linux 2",
+            #     arch="x86_64",
+            #     pkg_type="rpm",
+            #     container="ghcr.io/saltstack/salt-ci-containers/testing:amazonlinux-2",
+            # ),
+            # LinuxPkg(
+            #     slug="amazonlinux-2-arm64",
+            #     display_name="Amazon Linux 2 Arm64",
+            #     arch="arm64",
+            #     pkg_type="rpm",
+            #     container="ghcr.io/saltstack/salt-ci-containers/testing:amazonlinux-2",
+            # ),
             LinuxPkg(
                 slug="amazonlinux-2023",
                 display_name="Amazon Linux 2023",
@@ -368,20 +362,6 @@ TEST_SALT_PKG_LISTING = PlatformDefinitions(
                 container="ghcr.io/saltstack/salt-ci-containers/testing:photon-5",
             ),
             LinuxPkg(
-                slug="ubuntu-20.04",
-                display_name="Ubuntu 20.04",
-                arch="x86_64",
-                pkg_type="deb",
-                container="ghcr.io/saltstack/salt-ci-containers/testing:ubuntu-20.04",
-            ),
-            LinuxPkg(
-                slug="ubuntu-20.04-arm64",
-                display_name="Ubuntu 20.04 Arm64",
-                arch="arm64",
-                pkg_type="deb",
-                container="ghcr.io/saltstack/salt-ci-containers/testing:ubuntu-20.04",
-            ),
-            LinuxPkg(
                 slug="ubuntu-22.04",
                 display_name="Ubuntu 22.04",
                 arch="x86_64",
@@ -417,32 +397,43 @@ TEST_SALT_PKG_LISTING = PlatformDefinitions(
         ],
         "windows": [
             WindowsPkg(
-                slug="windows-2019",
-                display_name="Windows 2019",
+                slug="windows-2022",
+                display_name="Windows 2022",
                 arch="amd64",
                 pkg_type="NSIS",
             ),
             WindowsPkg(
-                slug="windows-2019",
-                display_name="Windows 2019",
+                slug="windows-2022",
+                display_name="Windows 2022",
                 arch="amd64",
                 pkg_type="MSI",
             ),
             WindowsPkg(
-                slug="windows-2022",
-                display_name="Windows 2022",
+                slug="windows-2025",
+                display_name="Windows 2025",
                 arch="amd64",
                 pkg_type="NSIS",
             ),
             WindowsPkg(
-                slug="windows-2022",
-                display_name="Windows 2022",
+                slug="windows-2025",
+                display_name="Windows 2025",
                 arch="amd64",
                 pkg_type="MSI",
             ),
         ],
     }
 )
+
+
+def slugs():
+    """
+    List of supported test slugs
+    """
+    all_slugs = []
+    for platform in TEST_SALT_LISTING:
+        for osdef in TEST_SALT_LISTING[platform]:
+            all_slugs.append(osdef.slug)
+    return all_slugs
 
 
 class NeedsTracker:
@@ -490,16 +481,6 @@ def generate_workflows(ctx: Context):
         "Scheduled": {
             "template": "scheduled.yml",
         },
-        "Release": {
-            "template": "release.yml",
-            "includes": {
-                "pre-commit": False,
-                "lint": False,
-                "pkg-tests": False,
-                "salt-tests": False,
-                "test-pkg-downloads": True,
-            },
-        },
     }
     test_salt_pkg_listing = TEST_SALT_PKG_LISTING
 
@@ -510,7 +491,7 @@ def generate_workflows(ctx: Context):
         "photon": [],
         "redhat": [],
     }
-    for slug in sorted(tools.utils.get_golden_images()):
+    for slug in sorted(slugs()):
         if slug.endswith("-arm64"):
             continue
         if not slug.startswith(("amazonlinux", "rockylinux", "fedora", "photonos")):
@@ -531,7 +512,7 @@ def generate_workflows(ctx: Context):
                 build_rpms_listing.append((distro, release, arch))
 
     build_debs_listing = []
-    for slug in sorted(tools.utils.get_golden_images()):
+    for slug in sorted(slugs()):
         if not slug.startswith(("debian-", "ubuntu-")):
             continue
         if slug.endswith("-arm64"):

@@ -864,12 +864,7 @@ def integration_files_dir(salt_factories):
     for child in (PYTESTS_DIR / "integration" / "files").iterdir():
         destpath = dirname / child.name
         if child.is_dir():
-            if sys.version_info >= (3, 8):
-                shutil.copytree(str(child), str(destpath), dirs_exist_ok=True)
-            else:
-                if destpath.exists():
-                    shutil.rmtree(str(destpath), ignore_errors=True)
-                shutil.copytree(str(child), str(destpath))
+            shutil.copytree(str(child), str(destpath), dirs_exist_ok=True)
         else:
             shutil.copyfile(str(child), str(destpath))
     return dirname
@@ -1002,7 +997,7 @@ def salt_syndic_master_factory(
     config_defaults["transport"] = request.config.getoption("--transport")
 
     config_overrides = {
-        "log_level_logfile": "quiet",
+        "log_level_logfile": "info",
         "fips_mode": FIPS_TESTRUN,
         "publish_signing_algorithm": (
             "PKCS1v15-SHA224" if FIPS_TESTRUN else "PKCS1v15-SHA1"
@@ -1083,7 +1078,7 @@ def salt_syndic_factory(salt_factories, salt_syndic_master_factory):
         opts["aliases.file"] = os.path.join(RUNTIME_VARS.TMP, "aliases")
         opts["transport"] = salt_syndic_master_factory.config["transport"]
         config_defaults["syndic"] = opts
-    config_overrides = {"log_level_logfile": "quiet"}
+    config_overrides = {"log_level_logfile": "info"}
     factory = salt_syndic_master_factory.salt_syndic_daemon(
         "syndic",
         defaults=config_defaults,
@@ -1121,7 +1116,7 @@ def salt_master_factory(
     config_defaults["transport"] = salt_syndic_master_factory.config["transport"]
 
     config_overrides = {
-        "log_level_logfile": "quiet",
+        "log_level_logfile": "info",
         "fips_mode": FIPS_TESTRUN,
         "publish_signing_algorithm": (
             "PKCS1v15-SHA224" if FIPS_TESTRUN else "PKCS1v15-SHA1"
@@ -1231,7 +1226,7 @@ def salt_minion_factory(salt_master_factory):
     config_defaults["transport"] = salt_master_factory.config["transport"]
 
     config_overrides = {
-        "log_level_logfile": "quiet",
+        "log_level_logfile": "info",
         "file_roots": salt_master_factory.config["file_roots"].copy(),
         "pillar_roots": salt_master_factory.config["pillar_roots"].copy(),
         "fips_mode": FIPS_TESTRUN,
@@ -1265,7 +1260,7 @@ def salt_sub_minion_factory(salt_master_factory):
     config_defaults["transport"] = salt_master_factory.config["transport"]
 
     config_overrides = {
-        "log_level_logfile": "quiet",
+        "log_level_logfile": "info",
         "file_roots": salt_master_factory.config["file_roots"].copy(),
         "pillar_roots": salt_master_factory.config["pillar_roots"].copy(),
         "fips_mode": FIPS_TESTRUN,

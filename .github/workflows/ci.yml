@@ -5,7 +5,11 @@ name: CI
 run-name: "CI (${{ github.event_name == 'pull_request' && format('pr: #{0}', github.event.number) || format('{0}: {1}', startsWith(github.event.ref, 'refs/tags') && 'tag' || 'branch', github.ref_name) }})"
 
 on:
-  push: {}
+  push:
+    branches:
+      - 3006.x
+      - 3007.x
+      - master
   pull_request:
     types:
       - labeled
@@ -16,7 +20,7 @@ on:
 
 env:
   COLUMNS: 190
-  CACHE_SEED: SEED-1  # Bump the number to invalidate all caches
+  CACHE_SEED: SEED-5  # Bump the number to invalidate all caches
   RELENV_DATA: "${{ github.workspace }}/.relenv"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   RAISE_DEPRECATIONS_RUNTIME_ERRORS: "1"
@@ -139,10 +143,10 @@ jobs:
                 - *tests_added_modified
                 - *pkg_tests_added_modified
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -233,12 +237,13 @@ jobs:
 
   lint:
     name: Lint
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['lint'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['lint'] }}
     uses: ./.github/workflows/lint-action.yml
     needs:
       - prepare-workflow
     with:
       changed-files: ${{ needs.prepare-workflow.outputs.changed-files }}
+      full: ${{ fromJSON(needs.prepare-workflow.outputs.config)['testrun']['type'] == 'full' }}
   nsis-tests:
     name: NSIS Tests
     uses: ./.github/workflows/nsis-tests.yml
@@ -246,21 +251,24 @@ jobs:
       - prepare-workflow
     with:
       changed-files: ${{ needs.prepare-workflow.outputs.changed-files }}
+      full: ${{ fromJSON(needs.prepare-workflow.outputs.config)['testrun']['type'] == 'full' }}
+      ci-python-version: "3.11"
 
   prepare-release:
     name: "Prepare Release: ${{ needs.prepare-workflow.outputs.salt-version }}"
     runs-on:
       - ubuntu-22.04
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['prepare-release'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['prepare-release'] }}
     needs:
       - prepare-workflow
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
+
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -358,7 +366,7 @@ jobs:
 
   build-docs:
     name: Documentation
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-docs'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-docs'] }}
     needs:
       - prepare-workflow
       - build-source-tarball
@@ -369,7 +377,7 @@ jobs:
 
   build-source-tarball:
     name: Build Source Tarball
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-source-tarball'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-source-tarball'] }}
     needs:
       - prepare-workflow
       - prepare-release
@@ -377,10 +385,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -398,33 +406,19 @@ jobs:
         with:
           salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
 
-  build-deps-onedir:
-    name: Build Onedir Dependencies
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-deps-onedir'] }}
-    needs:
-      - prepare-workflow
-    uses: ./.github/workflows/build-deps-onedir.yml
-    with:
-      cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.18.0"
-      python-version: "3.10.15"
-      matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
-      linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
-
   build-salt-onedir:
     name: Build Salt Onedir
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-salt-onedir'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-salt-onedir'] }}
     needs:
       - prepare-workflow
-      - build-deps-onedir
       - build-source-tarball
     uses: ./.github/workflows/build-salt-onedir.yml
     with:
       cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.18.0"
-      python-version: "3.10.15"
+      relenv-version: "0.19.4"
+      python-version: "3.10.17"
+      ci-python-version: "3.11"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
 
@@ -438,8 +432,9 @@ jobs:
     with:
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      relenv-version: "0.18.0"
-      python-version: "3.10.15"
+      relenv-version: "0.19.4"
+      python-version: "3.10.17"
+      ci-python-version: "3.11"
       source: "onedir"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
@@ -453,9 +448,10 @@ jobs:
     with:
       nox-session: ci-test-onedir
       nox-version: 2022.8.7
-      python-version: "3.10"
+      python-version: "3.10.17"
+      ci-python-version: "3.11"
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.15
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.17
       nox-archive-hash: "${{ needs.prepare-workflow.outputs.nox-archive-hash }}"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
@@ -471,8 +467,8 @@ jobs:
       nox-session: ci-test-onedir
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       nox-version: 2022.8.7
-      python-version: "3.10"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.15
+      ci-python-version: "3.11"
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.17
       skip-code-coverage: ${{ fromJSON(needs.prepare-workflow.outputs.config)['skip_code_coverage'] }}
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['pkg-test-matrix']) }}
@@ -487,10 +483,10 @@ jobs:
     with:
       nox-session: ci-test-onedir
       nox-version: 2022.8.7
-      python-version: "3.10"
+      ci-python-version: "3.11"
       testrun: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['testrun']) }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.15
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.17
       skip-code-coverage: ${{ fromJSON(needs.prepare-workflow.outputs.config)['skip_code_coverage'] }}
       workflow-slug: ci
       default-timeout: 180
@@ -499,7 +495,7 @@ jobs:
 
   combine-all-code-coverage:
     name: Combine Code Coverage
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['skip_code_coverage'] == false }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['skip_code_coverage'] == false }}
     runs-on: ubuntu-22.04
     env:
       PIP_INDEX_URL: https://pypi.org/simple
@@ -509,10 +505,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
+
 
       - name: Setup Python Tools Scripts
         id: python-tools-scripts
@@ -629,7 +626,7 @@ jobs:
     # This step is just so we can make github require this step, to pass checks
     # on a pull request instead of requiring all
     name: Set the ${{ github.workflow }} Pipeline Exit Status
-    if: always()
+    if: ${{ !cancelled() && always() }}
     runs-on: ubuntu-22.04
     needs:
       - prepare-workflow
@@ -637,7 +634,6 @@ jobs:
       - lint
       - nsis-tests
       - build-docs
-      - build-deps-onedir
       - build-salt-onedir
       - combine-all-code-coverage
       - build-ci-deps

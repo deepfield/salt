@@ -280,17 +280,11 @@ class SaltLoggingClass(LOGGING_LOGGER_CLASS, metaclass=LoggingMixinMeta):
         else:
             extra["exc_info_on_loglevel"] = exc_info_on_loglevel
 
-        if sys.version_info < (3, 8):
-            LOGGING_LOGGER_CLASS._log(
-                self,
-                level,
-                msg,
-                args,
-                exc_info=exc_info,
-                extra=extra,
-                stack_info=stack_info,
-            )
-        else:
+        # this is required for log lines to work as expected because we are
+        # adding a stackframe with this function
+        stacklevel = stacklevel + 1
+
+        try:
             LOGGING_LOGGER_CLASS._log(
                 self,
                 level,
@@ -300,6 +294,18 @@ class SaltLoggingClass(LOGGING_LOGGER_CLASS, metaclass=LoggingMixinMeta):
                 extra=extra,
                 stack_info=stack_info,
                 stacklevel=stacklevel,
+            )
+        except TypeError:
+            # stacklevel was introduced in Py 3.8
+            # must be running on old OS with Python 3.6 or 3.7
+            LOGGING_LOGGER_CLASS._log(
+                self,
+                level,
+                msg,
+                args,
+                exc_info=exc_info,
+                extra=extra,
+                stack_info=stack_info,
             )
 
     def makeRecord(

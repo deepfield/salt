@@ -273,13 +273,11 @@ def gid_to_group(gid):
         salt '*' file.gid_to_group S-1-5-21-626487655-2533044672-482107328-1010
     """
     func_name = f"{__virtualname__}.gid_to_group"
-    if __opts__.get("fun", "") == func_name:
-        log.info(
-            "The function %s should not be used on Windows systems; "
-            "see function docs for details.",
-            func_name,
-        )
-
+    log.info(
+        "The function %s should not be used on Windows systems; "
+        "see function docs for details.",
+        func_name,
+    )
     return uid_to_user(gid)
 
 
@@ -308,13 +306,11 @@ def group_to_gid(group):
         salt '*' file.group_to_gid administrators
     """
     func_name = f"{__virtualname__}.group_to_gid"
-    if __opts__.get("fun", "") == func_name:
-        log.info(
-            "The function %s should not be used on Windows systems; "
-            "see function docs for details.",
-            func_name,
-        )
-
+    log.info(
+        "The function %s should not be used on Windows systems; "
+        "see function docs for details.",
+        func_name,
+    )
     if group is None:
         return ""
 
@@ -434,14 +430,12 @@ def get_gid(path, follow_symlinks=True):
         salt '*' file.get_gid c:\\temp\\test.txt
     """
     func_name = f"{__virtualname__}.get_gid"
-    if __opts__.get("fun", "") == func_name:
-        log.info(
-            "The function %s should not be used on Windows systems; "
-            "see function docs for details. The value returned is the "
-            "uid.",
-            func_name,
-        )
-
+    log.info(
+        "The function %s should not be used on Windows systems; "
+        "see function docs for details. The value returned is the "
+        "uid.",
+        func_name,
+    )
     return get_uid(path, follow_symlinks)
 
 
@@ -481,26 +475,25 @@ def get_group(path, follow_symlinks=True):
         salt '*' file.get_group c:\\temp\\test.txt
     """
     func_name = f"{__virtualname__}.get_group"
-    if __opts__.get("fun", "") == func_name:
-        log.info(
-            "The function %s should not be used on Windows systems; "
-            "see function docs for details. The value returned is the "
-            "user (owner).",
-            func_name,
-        )
-
+    log.info(
+        "The function %s should not be used on Windows systems; "
+        "see function docs for details. The value returned is the "
+        "user (owner).",
+        func_name,
+    )
     return get_user(path, follow_symlinks)
 
 
 def uid_to_user(uid):
     """
-    Convert a uid to a user name
+    Convert a User ID (uid) to a username
 
     Args:
         uid (str): The user id to lookup
 
     Returns:
-        str: The name of the user
+        str: The name of the user. The ``uid`` will be returned if there is no
+             corresponding username
 
     CLI Example:
 
@@ -636,14 +629,12 @@ def get_mode(path):
         raise CommandExecutionError(f"Path not found: {path}")
 
     func_name = f"{__virtualname__}.get_mode"
-    if __opts__.get("fun", "") == func_name:
-        log.info(
-            "The function %s should not be used on Windows systems; "
-            "see function docs for details. The value returned is "
-            "always None.",
-            func_name,
-        )
-
+    log.info(
+        "The function %s should not be used on Windows systems; "
+        "see function docs for details. The value returned is "
+        "always None.",
+        func_name,
+    )
     return None
 
 
@@ -685,12 +676,11 @@ def lchown(path, user, group=None, pgroup=None):
     """
     if group:
         func_name = f"{__virtualname__}.lchown"
-        if __opts__.get("fun", "") == func_name:
-            log.info(
-                "The group parameter has no effect when using %s on "
-                "Windows systems; see function docs for details.",
-                func_name,
-            )
+        log.info(
+            "The group parameter has no effect when using %s on "
+            "Windows systems; see function docs for details.",
+            func_name,
+        )
         log.debug("win_file.py %s Ignoring the group parameter for %s", func_name, path)
         group = None
 
@@ -734,12 +724,11 @@ def chown(path, user, group=None, pgroup=None, follow_symlinks=True):
     # the group parameter is not used; only provided for API compatibility
     if group is not None:
         func_name = f"{__virtualname__}.chown"
-        if __opts__.get("fun", "") == func_name:
-            log.info(
-                "The group parameter has no effect when using %s on "
-                "Windows systems; see function docs for details.",
-                func_name,
-            )
+        log.info(
+            "The group parameter has no effect when using %s on "
+            "Windows systems; see function docs for details.",
+            func_name,
+        )
         log.debug("win_file.py %s Ignoring the group parameter for %s", func_name, path)
 
     if follow_symlinks and sys.getwindowsversion().major >= 6:
@@ -818,12 +807,11 @@ def chgrp(path, group):
         salt '*' file.chgrp c:\\temp\\test.txt administrators
     """
     func_name = f"{__virtualname__}.chgrp"
-    if __opts__.get("fun", "") == func_name:
-        log.info(
-            "The function %s should not be used on Windows systems; see "
-            "function docs for details.",
-            func_name,
-        )
+    log.info(
+        "The function %s should not be used on Windows systems; see "
+        "function docs for details.",
+        func_name,
+    )
     log.debug("win_file.py %s Doing nothing for %s", func_name, path)
 
     return None
@@ -1311,14 +1299,12 @@ def set_mode(path, mode):
         salt '*' file.set_mode /etc/passwd 0644
     """
     func_name = f"{__virtualname__}.set_mode"
-    if __opts__.get("fun", "") == func_name:
-        log.info(
-            "The function %s should not be used on Windows systems; "
-            "see function docs for details. The value returned is "
-            "always None. Use set_perms instead.",
-            func_name,
-        )
-
+    log.info(
+        "The function %s should not be used on Windows systems; "
+        "see function docs for details. The value returned is "
+        "always None. Use set_perms instead.",
+        func_name,
+    )
     return get_mode(path)
 
 

@@ -53,6 +53,7 @@ except ImportError:
     pass
 
 if salt.utils.platform.is_windows():
+    import salt.platform.win
     from salt.utils.win_functions import escape_argument as _cmd_quote
     from salt.utils.win_runas import runas as win_runas
 
@@ -268,7 +269,13 @@ def _prep_powershell_cmd(win_shell, cmd, encoded_cmd):
     if not win_shell:
         raise CommandExecutionError(f"PowerShell binary not found: {win_shell}")
 
-    new_cmd = [win_shell, "-NonInteractive", "-NoProfile", "-ExecutionPolicy", "Bypass"]
+    new_cmd = [
+        f'"{win_shell}"',
+        "-NonInteractive",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+    ]
 
     # extract_stack() returns a list of tuples.
     # The last item in the list [-1] is the current method.
@@ -283,9 +290,12 @@ def _prep_powershell_cmd(win_shell, cmd, encoded_cmd):
         new_cmd.append("-Command")
         if isinstance(cmd, list):
             cmd = " ".join(cmd)
-        new_cmd.append(f"& {cmd.strip()}")
+        # We need to append $LASTEXITCODE here to return the actual exit code
+        # from the script. Otherwise, it will always return 1 on any non-zero
+        # exit code failure. Issue: #60884
+        new_cmd.append(f'"& {cmd.strip()}; exit $LASTEXITCODE"')
     elif encoded_cmd:
-        new_cmd.extend(["-EncodedCommand", f"{cmd}"])
+        new_cmd.extend(["-EncodedCommand", f'"{cmd}"'])
     else:
         # Strip whitespace
         if isinstance(cmd, list):
@@ -293,15 +303,31 @@ def _prep_powershell_cmd(win_shell, cmd, encoded_cmd):
 
         # Commands that are a specific keyword behave differently. They fail if
         # you add a "&" to the front. Add those here as we find them:
-        keywords = ["$", "&", ".", "Configuration"]
+        keywords = [
+            "(",
+            "[",
+            "$",
+            "&",
+            ".",
+            "data",
+            "do",
+            "for",
+            "foreach",
+            "if",
+            "trap",
+            "while",
+            "try",
+            "Configuration",
+        ]
 
         for keyword in keywords:
-            if cmd.startswith(keyword):
-                new_cmd.extend(["-Command", f"{cmd.strip()}"])
+            if cmd.lower().startswith(keyword.lower()):
+                new_cmd.extend(["-Command", f'"{cmd.strip()}"'])
                 break
         else:
-            new_cmd.extend(["-Command", f"& {cmd.strip()}"])
+            new_cmd.extend(["-Command", f'"& {cmd.strip()}"'])
 
+    new_cmd = " ".join(new_cmd)
     log.debug(new_cmd)
     return new_cmd
 
@@ -392,7 +418,7 @@ def _run(
         if not os.path.isfile(shell) or not os.access(shell, os.X_OK):
             msg = f"The shell {shell} is not available"
             raise CommandExecutionError(msg)
-    elif use_vt:  # Memozation so not much overhead
+    elif use_vt:  # Memoization so not much overhead
         raise CommandExecutionError("VT not available on windows")
     else:
         if windows_codepage:
@@ -401,12 +427,6 @@ def _run(
             previous_windows_codepage = salt.utils.win_chcp.get_codepage_id()
             if windows_codepage != previous_windows_codepage:
                 change_windows_codepage = True
-
-    # The powershell binary is "powershell"
-    # The powershell core binary is "pwsh"
-    # you can also pass a path here as long as the binary name is one of the two
-    if any(word in shell.lower().strip() for word in ["powershell", "pwsh"]):
-        cmd = _prep_powershell_cmd(shell, cmd, encoded_cmd)
 
     # munge the cmd and cwd through the template
     (cmd, cwd) = _render_cmd(cmd, cwd, template, saltenv, pillarenv, pillar_override)
@@ -417,6 +437,19 @@ def _run(
     if "__pub_jid" in kwargs:
         if not _check_avail(cmd):
             raise CommandExecutionError(f'The shell command "{cmd}" is not permitted')
+
+    # The powershell binary is "powershell"
+    # The powershell core binary is "pwsh"
+    # you can also pass a path here as long as the binary name is one of the two
+    if salt.utils.platform.is_windows():
+        if runas:
+            if not HAS_WIN_RUNAS:
+                msg = "missing salt/utils/win_runas.py"
+                raise CommandExecutionError(msg)
+        if any(word in shell.lower().strip() for word in ["powershell", "pwsh"]):
+            cmd = _prep_powershell_cmd(shell, cmd, encoded_cmd)
+        else:
+            cmd = salt.platform.win.prepend_cmd(cmd)
 
     env = _parse_env(env)
 
@@ -446,16 +479,6 @@ def _run(
             ),
         )
         log.info(log_callback(msg))
-
-    if runas and salt.utils.platform.is_windows():
-        if not HAS_WIN_RUNAS:
-            msg = "missing salt/utils/win_runas.py"
-            raise CommandExecutionError(msg)
-
-        if isinstance(cmd, (list, tuple)):
-            cmd = " ".join(cmd)
-
-        return win_runas(cmd, runas, password, cwd)
 
     if runas and salt.utils.platform.is_darwin():
         # We need to insert the user simulation into the command itself and not
@@ -489,7 +512,7 @@ def _run(
         # hang.
         runas = None
 
-    if runas:
+    if runas and not salt.utils.platform.is_windows():
         # Save the original command before munging it
         try:
             pwd.getpwnam(runas)
@@ -510,7 +533,7 @@ def _run(
         else:
             use_sudo = True
 
-    if runas or group:
+    if (runas or group) and not salt.utils.platform.is_windows():
         try:
             # Getting the environment for the runas user
             # Use markers to thwart any stdout noise
@@ -749,90 +772,104 @@ def _run(
 
     if not use_vt:
         # This is where the magic happens
-        try:
+
+        if runas and salt.utils.platform.is_windows():
+
+            # We can't use TimedProc with runas on Windows
             if change_windows_codepage:
                 salt.utils.win_chcp.set_codepage_id(windows_codepage)
-            try:
-                proc = salt.utils.timed_subprocess.TimedProc(cmd, **new_kwargs)
-            except OSError as exc:
-                msg = "Unable to run command '{}' with the context '{}', reason: {}".format(
-                    cmd if output_loglevel is not None else "REDACTED",
-                    new_kwargs,
-                    exc,
-                )
-                raise CommandExecutionError(msg)
 
-            try:
-                proc.run()
-            except TimedProcTimeoutError as exc:
-                ret["stdout"] = str(exc)
-                ret["stderr"] = ""
-                ret["retcode"] = None
-                ret["pid"] = proc.process.pid
-                # ok return code for timeouts?
-                ret["retcode"] = 1
-                return ret
-        finally:
+            ret = win_runas(cmd, runas, password, cwd)
+
             if change_windows_codepage:
                 salt.utils.win_chcp.set_codepage_id(previous_windows_codepage)
 
-        if output_loglevel != "quiet" and output_encoding is not None:
-            log.debug(
-                "Decoding output from command %s using %s encoding",
-                cmd,
-                output_encoding,
-            )
+        else:
+            try:
+                if change_windows_codepage:
+                    salt.utils.win_chcp.set_codepage_id(windows_codepage)
+                try:
+                    proc = salt.utils.timed_subprocess.TimedProc(cmd, **new_kwargs)
+                except OSError as exc:
+                    msg = "Unable to run command '{}' with the context '{}', reason: {}".format(
+                        cmd if output_loglevel is not None else "REDACTED",
+                        new_kwargs,
+                        exc,
+                    )
+                    raise CommandExecutionError(msg)
 
-        try:
-            out = salt.utils.stringutils.to_unicode(
-                proc.stdout, encoding=output_encoding
-            )
-        except TypeError:
-            # stdout is None
-            out = ""
-        except UnicodeDecodeError:
-            out = salt.utils.stringutils.to_unicode(
-                proc.stdout, encoding=output_encoding, errors="replace"
-            )
-            if output_loglevel != "quiet":
-                log.error(
-                    "Failed to decode stdout from command %s, non-decodable "
-                    "characters have been replaced",
-                    _log_cmd(cmd),
+                try:
+                    proc.run()
+                except TimedProcTimeoutError as exc:
+                    ret["stdout"] = str(exc)
+                    ret["stderr"] = ""
+                    ret["retcode"] = None
+                    ret["pid"] = proc.process.pid
+                    # ok return code for timeouts?
+                    ret["retcode"] = 1
+                    return ret
+            finally:
+                if change_windows_codepage:
+                    salt.utils.win_chcp.set_codepage_id(previous_windows_codepage)
+
+            if output_loglevel != "quiet" and output_encoding is not None:
+                log.debug(
+                    "Decoding output from command %s using %s encoding",
+                    cmd,
+                    output_encoding,
                 )
 
-        try:
-            err = salt.utils.stringutils.to_unicode(
-                proc.stderr, encoding=output_encoding
-            )
-        except TypeError:
-            # stderr is None
-            err = ""
-        except UnicodeDecodeError:
-            err = salt.utils.stringutils.to_unicode(
-                proc.stderr, encoding=output_encoding, errors="replace"
-            )
-            if output_loglevel != "quiet":
-                log.error(
-                    "Failed to decode stderr from command %s, non-decodable "
-                    "characters have been replaced",
-                    _log_cmd(cmd),
+            try:
+                out = salt.utils.stringutils.to_unicode(
+                    proc.stdout, encoding=output_encoding
                 )
+            except TypeError:
+                # stdout is None
+                out = ""
+            except UnicodeDecodeError:
+                out = salt.utils.stringutils.to_unicode(
+                    proc.stdout, encoding=output_encoding, errors="replace"
+                )
+                if output_loglevel != "quiet":
+                    log.error(
+                        "Failed to decode stdout from command %s, non-decodable "
+                        "characters have been replaced",
+                        _log_cmd(cmd),
+                    )
 
-        # Encoded commands dump CLIXML data in stderr. It's not an actual error
-        if encoded_cmd and "CLIXML" in err:
-            err = ""
-        if rstrip:
-            if out is not None:
-                out = out.rstrip()
-            if err is not None:
-                err = err.rstrip()
-        ret["pid"] = proc.process.pid
-        ret["retcode"] = proc.process.returncode
+            try:
+                err = salt.utils.stringutils.to_unicode(
+                    proc.stderr, encoding=output_encoding
+                )
+            except TypeError:
+                # stderr is None
+                err = ""
+            except UnicodeDecodeError:
+                err = salt.utils.stringutils.to_unicode(
+                    proc.stderr, encoding=output_encoding, errors="replace"
+                )
+                if output_loglevel != "quiet":
+                    log.error(
+                        "Failed to decode stderr from command %s, non-decodable "
+                        "characters have been replaced",
+                        _log_cmd(cmd),
+                    )
+
+            # Encoded commands dump CLIXML data in stderr. It's not an actual error
+            if encoded_cmd and "CLIXML" in err:
+                err = ""
+            if rstrip:
+                if out is not None:
+                    out = out.rstrip()
+                if err is not None:
+                    err = err.rstrip()
+            ret["pid"] = proc.process.pid
+            ret["retcode"] = proc.process.returncode
+            ret["stdout"] = out
+            ret["stderr"] = err
+
         if ret["retcode"] in success_retcodes:
             ret["retcode"] = 0
-        ret["stdout"] = out
-        ret["stderr"] = err
         if any(
             [stdo in ret["stdout"] for stdo in success_stdout]
             + [stde in ret["stderr"] for stde in success_stderr]
@@ -2889,13 +2926,18 @@ def script(
         kwargs.pop("__env__")
 
     win_cwd = False
-    if salt.utils.platform.is_windows() and runas and cwd is None:
-        # Create a temp working directory
-        cwd = tempfile.mkdtemp(dir=__opts__["cachedir"])
-        win_cwd = True
-        salt.utils.win_dacl.set_permissions(
-            obj_name=cwd, principal=runas, permissions="full_control"
-        )
+    if salt.utils.platform.is_windows() and runas:
+        # Let's make sure the user exists first
+        if not __salt__["user.info"](runas):
+            msg = f"Invalid user: {runas}"
+            raise CommandExecutionError(msg)
+        if cwd is None:
+            # Create a temp working directory
+            cwd = tempfile.mkdtemp(dir=__opts__["cachedir"])
+            win_cwd = True
+            salt.utils.win_dacl.set_permissions(
+                obj_name=cwd, principal=runas, permissions="full_control"
+            )
 
     path = salt.utils.files.mkstemp(
         dir=cwd, suffix=os.path.splitext(salt.utils.url.split_env(source)[0])[1]
@@ -4096,16 +4138,16 @@ def powershell(
     # ConvertTo-JSON is only available on PowerShell 3.0 and later
     psversion = shell_info("powershell")["psversion"]
     if salt.utils.versions.version_cmp(psversion, "2.0") == 1:
-        cmd += " | ConvertTo-JSON"
+        cmd += " | ConvertTo-JSON "
         if depth is not None:
-            cmd += f" -Depth {depth}"
+            cmd += f"-Depth {depth} "
 
     # Put the whole command inside a try / catch block
     # Some errors in PowerShell are not "Terminating Errors" and will not be
     # caught in a try/catch block. For example, the `Get-WmiObject` command will
     # often return a "Non Terminating Error". To fix this, make sure
     # `-ErrorAction Stop` is set in the powershell command
-    cmd = "try {" + cmd + '} catch { "{}" }'
+    cmd = "try { " + cmd + ' } catch { "{}" }'
 
     if encode_cmd:
         # Convert the cmd to UTF-16LE without a BOM and base64 encode.
@@ -4117,7 +4159,7 @@ def powershell(
         cmd = salt.utils.stringutils.to_str(cmd)
         encoded_cmd = True
     else:
-        cmd = f"{{{cmd}}}"
+        cmd = f"{{ {cmd} }}"
         encoded_cmd = False
 
     # Retrieve the response, while overriding shell with 'powershell'

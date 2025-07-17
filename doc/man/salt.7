@@ -27,11 +27,11 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .in \\n[rst2man-indent\\n[rst2man-indent-level]]u
 ..
-.TH "SALT" "7" "Generated on July 29, 2024 at 07:43:51 AM UTC." "3006.9" "Salt"
+.TH "SALT" "7" "Generated on March 19, 2025 at 04:34:24 UTC." "3006.10" "Salt"
 .SH NAME
 salt \- Salt Documentation
 .SH SALT PROJECT
-\fI\%Salt Project License: Apache v2.0\fP\fI\%PyPi Package Downloads\fP\fI\%PyPi Package Downloads\fP\fI\%Salt Project Slack Community\fP\fI\%Salt Project Twitch Channel\fP\fI\%Salt Project subreddit\fP\fI\%Follow SaltStack on Twitter\fP.INDENT 0.0
+\fI\%Salt Project License: Apache v2.0\fP\fI\%PyPi Package Downloads\fP\fI\%Salt Project Discord Community\fP\fI\%Salt Project subreddit\fP\fI\%Follow SaltStack on Twitter\fP.INDENT 0.0
 .INDENT 2.5
 [image: Salt Project Logo]
 [image]
@@ -84,16 +84,17 @@ outages, common administration problems, or other important events.
 .UNINDENT
 .SS About our sponsors
 .sp
-Salt powers VMware\(aqs \fI\%VMware Aria Automation Config\fP
-(previously vRealize Automation SaltStack Config / SaltStack Enterprise), and can be found
+Salt powers VMware by Broadcom\(aqs \fI\%Tanzu Salt\fP
+(previously Aria Automation Config / vRealize Automation SaltStack Config / SaltStack Enterprise), and can be found
 under the hood of products from Juniper, Cisco, Cloudflare, Nutanix, SUSE, and
 Tieto, to name a few.
 .sp
-The original sponsor of our community, SaltStack, was \fI\%acquired by VMware in 2020\fP\&.
-The Salt Project remains an open source ecosystem that VMware supports and
-contributes to. VMware ensures the code integrity and quality of the Salt
+The original sponsor of our community, SaltStack, was acquired by VMware in 2020.
+\fI\%VMware was later acquired by Broadcom in 2023\fP\&.
+The Salt Project remains an open source ecosystem that Broadcom supports and
+contributes to. Broadcom ensures the code integrity and quality of the Salt
 modules by acting as the official sponsor and manager of the Salt project. Many
-of the core Salt Project contributors are also VMware employees. This team
+of the core Salt Project contributors are also Broadcom employees. This team
 carefully reviews and enhances the Salt modules to ensure speed, quality, and
 security.
 .SS Download and install Salt
@@ -104,15 +105,28 @@ Windows, and more. Download Salt and get started now. See
 for more information.
 .sp
 To download and install Salt, see:
-* \fI\%The Salt install guide\fP
-* \fI\%Salt Project repository\fP
+.INDENT 0.0
+.IP \(bu 2
+.INDENT 2.0
+.TP
+.B \fI\%The Salt install guide\fP
+.INDENT 7.0
+.IP \(bu 2
+\fI\%Salt Project Repository: Linux (RPM)\fP \- Where Salt \fBrpm\fP packages are officially stored and distributed.
+.IP \(bu 2
+\fI\%Salt Project Repository: Linux (DEB)\fP \- Where Salt \fBdeb\fP packages are officially stored and distributed.
+.IP \(bu 2
+\fI\%Salt Project Repository: GENERIC\fP \- Where Salt Windows, macOS, etc. (non\-rpm, non\-deb) packages are officially stored and distributed.
+.UNINDENT
+.UNINDENT
+.UNINDENT
 .SS Technical support
 .sp
 Report bugs or problems using Salt by opening an issue: \fI\%https://github.com/saltstack/salt/issues\fP
 .sp
 To join our community forum where you can exchange ideas, best practices,
 discuss technical support questions, and talk to project maintainers, join our
-Slack workspace: \fI\%Salt Project Community Slack\fP
+Discord server: \fI\%Salt Project Community Discord\fP
 .SS Salt Project documentation
 .sp
 Installation instructions, tutorials, in\-depth API and module documentation:
@@ -137,7 +151,7 @@ announcements.
 .sp
 Other channels to receive security announcements include the
 \fI\%Salt Community mailing list\fP
-and the \fI\%Salt Project Community Slack\fP\&.
+and the \fI\%Salt Project Community Discord\fP\&.
 .SS Responsibly reporting security vulnerabilities
 .sp
 When reporting security vulnerabilities for Salt or other SaltStack projects,
@@ -159,15 +173,11 @@ Please be sure to review our
 Also, check out some of our community resources including:
 .INDENT 0.0
 .IP \(bu 2
-\fI\%Salt Project Community Wiki\fP
-.IP \(bu 2
-\fI\%Salt Project Community Slack\fP
-.IP \(bu 2
-\fI\%Salt Project: IRC on LiberaChat\fP
+\fI\%Salt Project Community Discord\fP
 .IP \(bu 2
 \fI\%Salt Project YouTube channel\fP
 .IP \(bu 2
-\fI\%Salt Project Twitch channel\fP
+\fI\%Salt Project Community Notes and Wiki\fP
 .UNINDENT
 .sp
 There are lots of ways to get involved in our community. Every month, there are
@@ -176,9 +186,8 @@ team and collaborate in real time. The best way to keep track is by subscribing
 to the \fBSalt Project Community Events Calendar\fP on the main
 \fI\%https://saltproject.io\fP website.
 .sp
-If you have additional questions, email us at \fI\%saltproject@vmware.com\fP or reach out
-directly to the Community Manager, Jimmy Chunga via Slack. We\(aqd be glad to
-have you join our community!
+If you have additional questions, email us at \fI\%saltproject.pdl@broadcom.com\fP or reach out
+directly to the Community Discord. We\(aqd be glad to have you join our community!
 .SS License
 .sp
 Salt is licensed under the Apache 2.0 license. Please
@@ -610,36 +619,61 @@ the enterprise. Orchestration makes it possible to coordinate the activities of
 multiple machines from a central place. It has the added advantage of being able
 to control the sequence of when certain configuration events occur.
 Orchestration states execute on the master using the state runner module.
-.SH CONTRIBUTING
+.SH CONTRIBUTING TO SALT: A GUIDE FOR CONTRIBUTORS
 .sp
-So you want to contribute to the Salt project? Excellent! You can help
-in a number of ways:
+So, you want to contribute to the Salt project? That\(aqs fantastic! There are many
+ways you can help improve Salt:
 .INDENT 0.0
 .IP \(bu 2
-Use Salt and open well\-written bug reports.
+Use Salt and report bugs with clear, detailed descriptions.
 .IP \(bu 2
-Join a \fI\%working group\fP\&.
+Join a \fI\%working group\fP to
+collaborate with other contributors.
 .IP \(bu 2
-Answer questions on \fI\%irc\fP,
-the \fI\%community Slack\fP,
-the \fI\%salt\-users mailing
-list\fP,
+Answer questions on platforms like
+the \fI\%community Discord\fP,
+the \fI\%salt\-users mailing list\fP,
 \fI\%Server Fault\fP,
 or \fI\%r/saltstack on Reddit\fP\&.
 .IP \(bu 2
-Fix bugs.
+Fix bugs or contribute to the \fI\%documentation\fP\&.
 .IP \(bu 2
-\fI\%Improve the documentation\fP\&.
+Submit workarounds, patches, or code (even without tests).
 .IP \(bu 2
-Provide workarounds, patches, or other code without tests.
-.IP \(bu 2
-Tell other people about problems you solved using Salt.
+Share your experiences and solutions to problems you\(aqve solved using Salt.
 .UNINDENT
+.SS Choosing the Right Branch for Your Pull Request
 .sp
-If you\(aqd like to update docs or fix an issue, you\(aqre going to need the
-Salt repo. The best way to contribute is using
-\fI\%Git\fP\&.
-.SS Environment setup
+We appreciate your contributions to the project! To ensure a smooth and
+efficient workflow, please follow these guidelines when submitting a Pull
+Request. Each type of contribution—whether it\(aqs fixing a bug, adding a feature,
+updating documentation, or fixing tests—should be targeted at the appropriate
+branch. This helps us manage changes effectively and maintain stability across
+versions.
+.INDENT 0.0
+.IP \(bu 2
+\fBBug Fixes:\fP
+.sp
+Create your Pull Request against the oldest supported branch where the bug
+exists. This ensures that the fix can be applied to all relevant versions.
+.IP \(bu 2
+\fBNew Features\fP:
+.sp
+For new features or enhancements, create your Pull Request against the master
+branch.
+.IP \(bu 2
+\fBDocumentation Updates:\fP
+.sp
+Documentation changes should be made against the master branch, unless they
+are related to a bug fix, in which case they should follow the same branch as
+the bug fix.
+.IP \(bu 2
+\fBTest Fixes:\fP
+.sp
+Pull Requests that fix broken or failing tests should be created against the
+oldest supported branch where the issue occurs.
+.UNINDENT
+.SS Setting Up Your Salt Development Environment
 .sp
 To hack on Salt or the docs you\(aqre going to need to set up your
 development environment. If you already have a workflow that you\(aqre
@@ -762,7 +796,7 @@ pyenv activate salt
 .sp
 Sweet! Now you\(aqre ready to clone Salt so you can start hacking away! If
 you get stuck at any point, check out the resources at the beginning of
-this guide. IRC and Slack are particularly helpful places to go.
+this guide. Discord and GitHub Discussions are particularly helpful places to go.
 .SS Get the source!
 .sp
 Salt uses the fork and clone workflow for Git contributions. See \fI\%Using
@@ -1428,7 +1462,7 @@ your PR is submitted during the week you should be able to expect some
 kind of communication within that business day. If your tests are
 passing and we\(aqre not in a code freeze, ideally your code will be merged
 that week or month. If you haven\(aqt heard from your assigned reviewer, ping them
-on GitHub, \fI\%irc\fP, or Community Slack.
+on GitHub or \fI\%Community Discord\fP\&.
 .sp
 It\(aqs likely that your reviewer will leave some comments that need
 addressing \- it may be a style change, or you forgot a changelog entry,
@@ -13777,7 +13811,8 @@ environment.
 .SS Install or upgrade Salt
 .sp
 Ensure your Salt masters are running at least Salt version 3004. For instructions
-on installing or upgrading Salt, see \fI\%repo.saltproject.io\fP\&. For RedHat systems, see \fI\%Install or Upgrade Salt\fP\&.
+on installing or upgrading Salt, see the
+\fI\%Salt Install Guide\fP\&.
 .SS Installation
 .sp
 Before you begin the delta proxy minion installation process, ensure you
@@ -24050,7 +24085,7 @@ In addition to the mailing lists, SaltStack also provides the following resource
 .IP \(bu 2
 \fI\%SaltStack Security RSS Feed\fP
 .IP \(bu 2
-\fI\%SaltStack Community Slack Workspace\fP
+\fI\%Salt Project Discord Community\fP
 .UNINDENT
 .SS Salt Channels
 .sp
@@ -37665,8 +37700,9 @@ This text will be wrapped in quotes.
 New in version 2017.7.0.
 
 .sp
-Scan through string looking for a location where this regular expression
-produces a match. Returns \fBNone\fP in case there were no matches found
+Looks for a match for the specified regex anywhere in the string. If the string
+does not match the regex, this filter returns \fBNone\fP\&. If the string _does_
+match the regex, then the \fI\%capture groups\fP for the regex will be returned.
 .sp
 Example:
 .INDENT 0.0
@@ -37691,13 +37727,49 @@ Returns:
 .fi
 .UNINDENT
 .UNINDENT
+.sp
+If the regex you use does not contain a capture group then the number of
+capture groups will be zero, and a matching regex will return an empty tuple.
+This means that the following \fBif\fP statement would evaluate as \fBFalse\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{%\- if \(aqfoobar\(aq | regex_search(\(aqfoo\(aq) %}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If you do not need a capture group and are just looking to test if a string
+matches a regex, then you should check to see if the filter returns \fBNone\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{%\- if (some_var | regex_search(\(aqfoo\(aq)) is not none %}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+In a Jinja statement, a null value (i.e. a Python \fBNone\fP) should be
+expressed as \fBnone\fP (i.e. lowercase). More info on this can be found in
+the \fBNote\fP section here in the \fI\%jinja docs\fP\&.
+.UNINDENT
+.UNINDENT
 .SS \fBregex_match\fP
 .sp
 New in version 2017.7.0.
 
 .sp
-If zero or more characters at the beginning of string match this regular
-expression, otherwise returns \fBNone\fP\&.
+Works exactly like \fI\%regex_search\fP, but only checks for matches at
+the _beginning_ of the string passed into this filter.
 .sp
 Example:
 .INDENT 0.0
@@ -44779,7 +44851,7 @@ following the instructions in the
 The Salt Project community can help offer advice and help troubleshoot
 technical issues as you\(aqre learning about Salt. One of the best places to
 talk to the community is on the
-\fI\%Salt Project Slack workspace\fP\&.
+\fI\%Salt Project Discord Community\fP\&.
 .UNINDENT
 .UNINDENT
 .SS Order your minions around
@@ -46106,7 +46178,7 @@ following the instructions in the
 The Salt Project community can help offer advice and help troubleshoot
 technical issues as you\(aqre learning about Salt. One of the best places to
 talk to the community is on the
-\fI\%Salt Project Slack workspace\fP\&.
+\fI\%Salt Project Discord Community\fP\&.
 .UNINDENT
 .UNINDENT
 .SS Running Salt functions as non root user
@@ -47049,7 +47121,7 @@ following the instructions in the
 The Salt Project community can help offer advice and help troubleshoot
 technical issues as you\(aqre learning about Salt. One of the best places to
 talk to the community is on the
-\fI\%Salt Project Slack workspace\fP\&.
+\fI\%Salt Project Discord Community\fP\&.
 .UNINDENT
 .UNINDENT
 .SS Setting up the Salt State Tree
@@ -48151,7 +48223,7 @@ can be found on GitHub in the \fI\%saltstack\-formulas\fP collection of reposito
 If you have any questions, suggestions, or just want to chat with other people
 who are using Salt, we have a very active community and we\(aqd love to hear from
 you. One of the best places to talk to the community is on the
-\fI\%Salt Project Slack workspace\fP\&.
+\fI\%Salt Project Discord Community\fP\&.
 .sp
 In addition, by continuing to the \fI\%Orchestrate Runner\fP docs,
 you can learn about the powerful orchestration of which Salt is capable.
@@ -52184,7 +52256,7 @@ Our APIs are open and documented (any lack of documentation is an oversight as o
 SaltStack the company does make proprietary products which use Salt and its libraries, like company is free to do, but we do so via the APIs, NOT by forking Salt and creating a different, closed\-source version of it for paying customers.
 .SS I think I found a bug! What should I do?
 .sp
-The salt\-users mailing list as well as the salt IRC channel can both be helpful
+The salt\-users mailing list as well as the Community Discord can both be helpful
 resources to confirm if others are seeing the issue and to assist with
 immediate debugging.
 .sp
@@ -54194,8 +54266,6 @@ the module using the following field lists:
 .sp
 .nf
 .ft C
-:maintainer:    Thomas Hatch <thatch@saltstack.com, Seth House <shouse@saltstack.com>
-:maturity:      new
 :depends:       python\-mysqldb
 :platform:      all
 .ft P
@@ -152164,7 +152234,7 @@ salt \(aq*\(aq cmd.powershell_all \(dqdir mydirectory\(dq force_list=True
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.retcode(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, clean_env=False, template=None, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, password=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.retcode(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, clean_env=False, template=None, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, password=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Execute a shell command and return the command\(aqs return code.
 .INDENT 7.0
 .TP
@@ -152423,7 +152493,7 @@ salt \(aq*\(aq cmd.retcode \(dqgrep f\(dq stdin=\(aqone\entwo\enthree\enfour\enf
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.run(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, redirect_stderr=True, bg=False, password=None, encoded_cmd=False, raise_err=False, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.run(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, redirect_stderr=True, bg=False, password=None, encoded_cmd=False, raise_err=False, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Execute the passed command and return the output as a string
 .INDENT 7.0
 .TP
@@ -152814,7 +152884,7 @@ salt \(aq*\(aq cmd.run cmd=\(aqsed \-e s/=/:/g\(aq
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.run_all(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, redirect_stderr=False, password=None, encoded_cmd=False, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.run_all(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, redirect_stderr=False, password=None, encoded_cmd=False, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Execute the passed command and return a dict of return data
 .INDENT 7.0
 .TP
@@ -153157,7 +153227,7 @@ salt \(aq*\(aq cmd.run_all \(dqgrep f\(dq stdin=\(aqone\entwo\enthree\enfour\enf
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.run_bg(cmd, cwd=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, clean_env=False, template=None, umask=None, timeout=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.run_bg(cmd, cwd=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, clean_env=False, template=None, umask=None, timeout=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 New in version 2016.3.0.
 
 .sp
@@ -153458,7 +153528,7 @@ salt \(aq*\(aq cmd.run_bg cmd=\(aqls \-lR / | sed \-e s/=/:/g > /tmp/dontwait\(a
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.run_chroot(root, cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=True, binds=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqquiet\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, bg=False, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.run_chroot(root, cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=True, binds=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqquiet\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, bg=False, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 New in version 2014.7.0.
 
 .sp
@@ -153679,7 +153749,7 @@ salt \(aq*\(aq cmd.run_chroot /var/lib/lxc/container_name/rootfs \(aqsh /tmp/boo
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.run_stderr(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.run_stderr(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Execute a command and only return the standard error
 .INDENT 7.0
 .TP
@@ -153956,7 +154026,7 @@ salt \(aq*\(aq cmd.run_stderr \(dqgrep f\(dq stdin=\(aqone\entwo\enthree\enfour\
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.run_stdout(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.run_stdout(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Execute a command, and only return the standard out
 .INDENT 7.0
 .TP
@@ -154233,7 +154303,7 @@ salt \(aq*\(aq cmd.run_stdout \(dqgrep f\(dq stdin=\(aqone\entwo\enthree\enfour\
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.script(source, args=None, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, template=None, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, saltenv=None, use_vt=False, bg=False, password=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.script(source, args=None, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, template=None, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, saltenv=None, use_vt=False, bg=False, password=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Download a script from a remote location and execute the script locally.
 The script can be located on the salt master file server or on an HTTP/FTP
 server.
@@ -154518,7 +154588,7 @@ salt \(aq*\(aq cmd.script salt://scripts/runme.sh stdin=\(aqone\entwo\enthree\en
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.script_retcode(source, args=None, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, python_shell=None, env=None, template=\(aqjinja\(aq, umask=None, timeout=None, reset_system_locale=True, saltenv=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, use_vt=False, password=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.script_retcode(source, args=None, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, python_shell=None, env=None, template=\(aqjinja\(aq, umask=None, timeout=None, reset_system_locale=True, saltenv=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, use_vt=False, password=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Download a script from a remote location and execute the script locally.
 The script can be located on the salt master file server or on an HTTP/FTP
 server.
@@ -154743,7 +154813,7 @@ salt \(aq*\(aq cmd.script_retcode salt://scripts/runme.sh stdin=\(aqone\entwo\en
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.cmdmod.shell(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/bash\(aq, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, bg=False, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
+.B salt.modules.cmdmod.shell(cmd, cwd=None, stdin=None, runas=None, group=None, shell=\(aq/bin/sh\(aq, env=None, clean_env=False, template=None, rstrip=True, umask=None, output_encoding=None, output_loglevel=\(aqdebug\(aq, log_callback=None, hide_output=False, timeout=None, reset_system_locale=True, ignore_retcode=False, saltenv=None, use_vt=False, bg=False, password=None, prepend_path=None, success_retcodes=None, success_stdout=None, success_stderr=None, **kwargs)
 Execute the passed command and return the output as a string.
 .sp
 New in version 2015.5.0.
@@ -194183,7 +194253,7 @@ Passes through all the parameters described in the
 \fI\%utils.http.query function\fP:
 .INDENT 7.0
 .TP
-.B salt.utils.http.query(url, method=\(aqGET\(aq, params=None, data=None, data_file=None, header_dict=None, header_list=None, header_file=None, username=None, password=None, auth=None, decode=False, decode_type=\(aqauto\(aq, status=False, headers=False, text=False, cookies=None, cookie_jar=None, cookie_format=\(aqlwp\(aq, persist_session=False, session_cookie_jar=None, data_render=False, data_renderer=None, header_render=False, header_renderer=None, template_dict=None, test=False, test_url=None, node=\(aqminion\(aq, port=80, opts=None, backend=None, ca_bundle=None, verify_ssl=None, cert=None, text_out=None, headers_out=None, decode_out=None, stream=False, streaming_callback=None, header_callback=None, handle=False, agent=\(aqSalt/3006.9\(aq, hide_fields=None, raise_error=True, formdata=False, formdata_fieldname=None, formdata_filename=None, decode_body=True, **kwargs)
+.B salt.utils.http.query(url, method=\(aqGET\(aq, params=None, data=None, data_file=None, header_dict=None, header_list=None, header_file=None, username=None, password=None, auth=None, decode=False, decode_type=\(aqauto\(aq, status=False, headers=False, text=False, cookies=None, cookie_jar=None, cookie_format=\(aqlwp\(aq, persist_session=False, session_cookie_jar=None, data_render=False, data_renderer=None, header_render=False, header_renderer=None, template_dict=None, test=False, test_url=None, node=\(aqminion\(aq, port=80, opts=None, backend=None, ca_bundle=None, verify_ssl=None, cert=None, text_out=None, headers_out=None, decode_out=None, stream=False, streaming_callback=None, header_callback=None, handle=False, agent=\(aqSalt/3006.10\(aq, hide_fields=None, raise_error=True, formdata=False, formdata_fieldname=None, formdata_filename=None, decode_body=True, **kwargs)
 Query a resource, and decode the return data
 .UNINDENT
 .INDENT 7.0
@@ -197279,7 +197349,7 @@ salt \(aq*\(aq ini.remove_section /path/to/ini section_name
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.modules.ini_manage.set_option(file_name, sections=None, separator=\(aq=\(aq, encoding=None)
+.B salt.modules.ini_manage.set_option(file_name, sections=None, separator=\(aq=\(aq, encoding=None, no_spaces=False)
 Edit an ini file, replacing one or more sections. Returns a dictionary
 containing the changes made.
 .INDENT 7.0
@@ -197310,6 +197380,25 @@ A string value representing encoding of the target ini file. If
 \fButf\-8\fP\&. Default is \fBNone\fP
 .sp
 New in version 3006.6.
+
+
+.IP \(bu 2
+\fBno_spaces\fP (\fI\%bool\fP) \-\-
+.sp
+A bool value that specifies that the key/value separator will be
+wrapped with spaces. This parameter was added to have the ability to
+not wrap the separator with spaces. Default is \fBFalse\fP, which
+maintains backwards compatibility.
+.sp
+\fBWARNING:\fP
+.INDENT 2.0
+.INDENT 3.5
+This will affect all key/value pairs in the ini file, not just
+the specific value being set.
+.UNINDENT
+.UNINDENT
+.sp
+New in version 3006.10.
 
 
 .UNINDENT
@@ -201455,7 +201544,7 @@ CLI Example:
 .sp
 .nf
 .ft C
-salt myminion jinja.import_JSON myformula/foo.json
+salt myminion jinja.import_json myformula/foo.json
 .ft P
 .fi
 .UNINDENT
@@ -281753,8 +281842,8 @@ salt \(aq*\(aq saltutil.term_job <job id>
 .TP
 .B salt.modules.saltutil.update(version=None)
 Update the salt minion from the URL defined in opts[\(aqupdate_url\(aq]
-VMware, Inc provides the latest builds here:
-update_url: \fI\%https://repo.saltproject.io/windows/\fP
+Broadcom, Inc provides the latest builds here:
+update_url: \fI\%https://packages.broadcom.com/artifactory/saltproject\-generic/windows/\fP
 .sp
 Be aware that as of 2014\-8\-11 there\(aqs a bug in esky such that only the
 latest version available in the update_url can be downloaded and installed.
@@ -297410,7 +297499,7 @@ CLI Example:
 .sp
 .nf
 .ft C
-salt \(aq*\(aq network.get_hostname
+salt \(aq*\(aq system.get_computer_name
 .ft P
 .fi
 .UNINDENT
@@ -321931,14 +322020,19 @@ salt \(aq*\(aq file.symlink /path/to/file /path/to/link
 .INDENT 0.0
 .TP
 .B salt.modules.win_file.uid_to_user(uid)
-Convert a uid to a user name
+Convert a User ID (uid) to a username
 .INDENT 7.0
 .TP
 .B Parameters
 \fBuid\fP (\fI\%str\fP) \-\- The user id to lookup
 .TP
 .B Returns
-The name of the user
+.INDENT 7.0
+.TP
+.B The name of the user. The \fBuid\fP will be returned if there is no
+corresponding username
+.UNINDENT
+
 .TP
 .B Return type
 \fI\%str\fP
@@ -340810,6 +340904,9 @@ automatically in place of YUM in Fedora 22 and newer.
 .sp
 New in version 3003: Support for \fBtdnf\fP on Photon OS.
 
+.sp
+New in version 3006.10: Support for \fBdnf5\(ga\fP on Fedora 41
+
 .INDENT 0.0
 .TP
 .B class  salt.modules.yumpkg.AvailablePackages(*args, **kwargs)
@@ -340930,13 +341027,13 @@ New in version 2015.5.0.
 
 .sp
 Download packages to the local disk. Requires \fByumdownloader\fP from
-\fByum\-utils\fP package.
+\fByum\-utils\fP or \fBdnf\-utils\fP package.
 .sp
 \fBNOTE:\fP
 .INDENT 7.0
 .INDENT 3.5
-\fByum\-utils\fP will already be installed on the minion if the package
-was installed from the Fedora / EPEL repositories.
+\fByum\-utils\fP or \fBdnf\-utils\fP will already be installed on the minion
+if the package was installed from the EPEL / Fedora repositories.
 .UNINDENT
 .UNINDENT
 .sp
@@ -342339,7 +342436,7 @@ salt \(aq*\(aq pkg.parse_arch zsh.x86_64
 Changed in version 2015.8.12,2016.3.3,2016.11.0: On minions running systemd>=205, \fI\%systemd\-run(1)\fP is now used to
 isolate commands which modify installed packages from the
 \fBsalt\-minion\fP daemon\(aqs control group. This is done to keep systemd
-from killing any yum/dnf commands spawned by Salt when the
+from killing any yum/dnf[5] commands spawned by Salt when the
 \fBsalt\-minion\fP service is restarted. (see \fBKillMode\fP in the
 \fI\%systemd.kill(5)\fP manpage for more information). If desired, usage of
 \fI\%systemd\-run(1)\fP can be suppressed by setting a \fI\%config option\fP called \fBsystemd.scope\fP, with a value of
@@ -342443,7 +342540,7 @@ salt \(aq*\(aq pkg.refresh_db
 Changed in version 2015.8.12,2016.3.3,2016.11.0: On minions running systemd>=205, \fI\%systemd\-run(1)\fP is now used to
 isolate commands which modify installed packages from the
 \fBsalt\-minion\fP daemon\(aqs control group. This is done to keep systemd
-from killing any yum/dnf commands spawned by Salt when the
+from killing any yum/dnf[5] commands spawned by Salt when the
 \fBsalt\-minion\fP service is restarted. (see \fBKillMode\fP in the
 \fI\%systemd.kill(5)\fP manpage for more information). If desired, usage of
 \fI\%systemd\-run(1)\fP can be suppressed by setting a \fI\%config option\fP called \fBsystemd.scope\fP, with a value of
@@ -352223,6 +352320,11 @@ line.
 .TP
 .B salt.grains.extra.config()
 Return the grains set in the grains file
+.UNINDENT
+.INDENT 0.0
+.TP
+.B salt.grains.extra.get_secure_boot_path()
+Provide paths for secure boot directories and files
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -374705,7 +374807,7 @@ salt\-run manage.allowed
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.runners.manage.bootstrap(version=\(aqdevelop\(aq, script=\(aqhttps://bootstrap.saltproject.io\(aq, hosts=\(aq\(aq, script_args=\(aq\(aq, roster=\(aqflat\(aq, ssh_user=None, ssh_password=None, ssh_priv_key=None, tmp_dir=\(aq/tmp/.bootstrap\(aq, http_backend=\(aqtornado\(aq)
+.B salt.runners.manage.bootstrap(version=\(aqdevelop\(aq, script=\(aqhttps://github.com/saltstack/salt\-bootstrap/releases/latest/download/bootstrap\-salt.sh\(aq, hosts=\(aq\(aq, script_args=\(aq\(aq, roster=\(aqflat\(aq, ssh_user=None, ssh_password=None, ssh_priv_key=None, tmp_dir=\(aq/tmp/.bootstrap\(aq, http_backend=\(aqtornado\(aq)
 Bootstrap minions with salt\-bootstrap
 .INDENT 7.0
 .TP
@@ -374714,7 +374816,7 @@ develop
 Git tag of version to install
 .TP
 .B script
-\fI\%https://bootstrap.saltproject.io/\fP
+\fI\%https://github.com/saltstack/salt\-bootstrap/releases/latest/download/bootstrap\-salt.sh\fP
 URL containing the script to execute
 .TP
 .B hosts
@@ -374787,8 +374889,8 @@ CLI Example:
 .nf
 .ft C
 salt\-run manage.bootstrap hosts=\(aqhost1,host2\(aq
-salt\-run manage.bootstrap hosts=\(aqhost1,host2\(aq version=\(aqv3004.2\(aq
-salt\-run manage.bootstrap hosts=\(aqhost1,host2\(aq version=\(aqv3004.2\(aq script=\(aqhttps://bootstrap.saltproject.io/develop\(aq
+salt\-run manage.bootstrap hosts=\(aqhost1,host2\(aq version=\(aqv3006.2\(aq
+salt\-run manage.bootstrap hosts=\(aqhost1,host2\(aq version=\(aqv3006.2\(aq script=\(aqhttps://github.com/saltstack/salt\-bootstrap/develop\(aq
 .ft P
 .fi
 .UNINDENT
@@ -374814,7 +374916,7 @@ Architecture of installer to download. Defaults to win32.
 .TP
 .B installer_url
 URL of minion installer executable. Defaults to the latest version from
-\fI\%https://repo.saltproject.io/windows/\fP
+\fI\%https://packages.broadcom.com/artifactory/saltproject\-generic/windows/\fP
 .TP
 .B username
 Optional user name for login on remote computer.
@@ -414755,20 +414857,36 @@ Example:
 .fi
 .UNINDENT
 .UNINDENT
-.TP
-.B keep_symlinks
-Keep symlinks when copying from the source. This option will cause
-the copy operation to terminate at the symlink. If desire behavior
-similar to rsync, then set this to True. This option is not taken
-in account if \fBfileserver_followsymlinks\fP is set to False.
-.TP
-.B force_symlinks
-Force symlink creation. This option will force the symlink creation.
-If a file or directory is obstructing symlink creation it will be
-recursively removed so that symlink creation can proceed. This
-option is usually not needed except in special circumstances. This
-option is not taken in account if \fBfileserver_followsymlinks\fP is
-set to False.
+.UNINDENT
+.sp
+keep_symlinks
+.INDENT 7.0
+.INDENT 3.5
+Determines how symbolic links (symlinks) are handled during the copying
+process. When set to \fBTrue\fP, the copy operation will copy the symlink
+itself, rather than the file or directory it points to. When set to
+\fBFalse\fP, the operation will follow the symlink and copy the target
+file or directory. If you want behavior similar to rsync, set this
+option to \fBTrue\fP\&.
+.sp
+However, if the \fBfileserver_followsymlinks\fP option is set to \fBFalse\fP,
+the \fBkeep_symlinks\fP setting will be ignored, and symlinks will not be
+copied at all.
+.UNINDENT
+.UNINDENT
+.sp
+force_symlinks
+.INDENT 7.0
+.INDENT 3.5
+Controls the creation of symlinks when using \fBkeep_symlinks\fP\&. When set
+to \fBTrue\fP, it forces the creation of symlinks by removing any existing
+files or directories that might be obstructing their creation. This
+removal is done recursively if a directory is blocking the symlink. This
+option is only used when \fBkeep_symlinks\fP is passed and is ignored if
+\fBfileserver_followsymlinks\fP is set to \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
 .TP
 .B win_owner
 The owner of the symlink and directories if \fBmakedirs\fP is True. If
@@ -420841,7 +420959,42 @@ all
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.states.ini_manage.options_absent(name, sections=None, separator=\(aq=\(aq)
+.B salt.states.ini_manage.options_absent(name, sections=None, separator=\(aq=\(aq, encoding=None)
+Remove a key/value pair from an ini file. Key/value pairs present in the ini
+file and not specified in sections dict will be untouched.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBname\fP (\fI\%str\fP) \-\- The path to the ini file
+.IP \(bu 2
+\fBsections\fP (\fI\%dict\fP) \-\- A dictionary of sections and key/value pairs that will be removed
+from the ini file. Other key/value pairs in the ini file will be
+untouched.
+.IP \(bu 2
+\fBseparator\fP (\fI\%str\fP) \-\- The character used to separate keys and values. Standard ini files
+use the \(dq=\(dq character. The default is \fB=\fP\&.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP) \-\-
+.sp
+A string value representing encoding of the target ini file. If
+\fBNone\fP is passed, it uses the system default which is likely
+\fButf\-8\fP\&. Default is \fBNone\fP
+.sp
+New in version 3006.10.
+
+
+.UNINDENT
+.TP
+.B Returns
+A dictionary containing list of changes made
+.TP
+.B Return type
+\fI\%dict\fP
+.UNINDENT
+.sp
+Example:
 .INDENT 7.0
 .INDENT 3.5
 .sp
@@ -420860,15 +421013,73 @@ all
 .fi
 .UNINDENT
 .UNINDENT
-.sp
-options present in file and not specified in sections
-dict will be untouched
-.sp
-changes dict will contain the list of changes made
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.states.ini_manage.options_present(name, sections=None, separator=\(aq=\(aq, strict=False)
+.B salt.states.ini_manage.options_present(name, sections=None, separator=\(aq=\(aq, strict=False, encoding=None, no_spaces=False)
+Set or create a key/value pair in an \fBini\fP file. Options present in the
+ini file and not specified in the sections dict will be untouched, unless
+the \fBstrict: True\fP flag is used.
+.sp
+Sections that do not exist will be created.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBname\fP (\fI\%str\fP) \-\- The path to the ini file
+.IP \(bu 2
+\fBsections\fP (\fI\%dict\fP) \-\- A dictionary of sections and key/value pairs that will be used to
+update the ini file. Other sections and key/value pairs in the ini
+file will be untouched unless \fBstrict: True\fP is passed.
+.IP \(bu 2
+\fBseparator\fP (\fI\%str\fP) \-\- The character used to separate keys and values. Standard ini files
+use the \(dq=\(dq character. The default is \fB=\fP\&.
+.IP \(bu 2
+\fBstrict\fP (\fI\%bool\fP) \-\- A boolean value that specifies that the \fBsections\fP dictionary
+contains all settings in the ini file. \fBTrue\fP will create an ini
+file with only the values specified in \fBsections\fP\&. \fBFalse\fP will
+append or update values in an existing ini file and leave the rest
+untouched.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP) \-\-
+.sp
+A string value representing encoding of the target ini file. If
+\fBNone\fP is passed, it uses the system default which is likely
+\fButf\-8\fP\&. Default is \fBNone\fP
+.sp
+New in version 3006.10.
+
+
+.IP \(bu 2
+\fBno_spaces\fP (\fI\%bool\fP) \-\-
+.sp
+A bool value that specifies that the key/value separator will be
+wrapped with spaces. This parameter was added to have the ability to
+not wrap the separator with spaces. Default is \fBFalse\fP, which
+maintains backwards compatibility.
+.sp
+\fBWARNING:\fP
+.INDENT 2.0
+.INDENT 3.5
+This will affect all key/value pairs in the ini file, not just
+the specific value being set.
+.UNINDENT
+.UNINDENT
+.sp
+New in version 3006.10.
+
+
+.UNINDENT
+.TP
+.B Returns
+A dictionary containing list of changes made
+.TP
+.B Return type
+\fI\%dict\fP
+.UNINDENT
+.sp
+Example:
 .INDENT 7.0
 .INDENT 3.5
 .sp
@@ -420888,16 +421099,45 @@ changes dict will contain the list of changes made
 .fi
 .UNINDENT
 .UNINDENT
-.sp
-options present in file and not specified in sections
-dict will be untouched, unless \fIstrict: True\fP flag is
-used
-.sp
-changes dict will contain the list of changes made
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.states.ini_manage.sections_absent(name, sections=None, separator=\(aq=\(aq)
+.B salt.states.ini_manage.sections_absent(name, sections=None, separator=\(aq=\(aq, encoding=None)
+Remove sections from the ini file. All key/value pairs in the section will
+also be removed.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBname\fP (\fI\%str\fP) \-\- The path to the ini file
+.IP \(bu 2
+\fBsections\fP (\fI\%dict\fP) \-\- A dictionary of sections and key/value pairs that will be used to
+update the ini file. Other sections and key/value pairs in the ini
+file will be untouched unless \fBstrict: True\fP is passed.
+.IP \(bu 2
+\fBseparator\fP (\fI\%str\fP) \-\- The character used to separate keys and values. Standard ini files
+use the \(dq=\(dq character. The default is \fB=\fP\&.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP) \-\-
+.sp
+A string value representing encoding of the target ini file. If
+\fBNone\fP is passed, it uses the system default which is likely
+\fButf\-8\fP\&. Default is \fBNone\fP
+.sp
+New in version 3006.6.
+
+
+.UNINDENT
+.TP
+.B Returns
+A dictionary containing list of changes made
+.TP
+.B Return type
+\fI\%dict\fP
+.UNINDENT
+.sp
+Example:
 .INDENT 7.0
 .INDENT 3.5
 .sp
@@ -420913,13 +421153,46 @@ changes dict will contain the list of changes made
 .fi
 .UNINDENT
 .UNINDENT
-.sp
-options present in file and not specified in sections will be deleted
-changes dict will contain the sections that changed
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.states.ini_manage.sections_present(name, sections=None, separator=\(aq=\(aq)
+.B salt.states.ini_manage.sections_present(name, sections=None, separator=\(aq=\(aq, encoding=None)
+Add sections to an ini file. This will only create empty sections. To also
+create key/value pairs, use options_present state.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBname\fP (\fI\%str\fP) \-\- The path to the ini file
+.IP \(bu 2
+\fBsections\fP (\fI\%dict\fP) \-\- A dictionary of sections and key/value pairs that will be used to
+update the ini file. Only the sections portion is used, key/value
+pairs are ignored. To also set key/value pairs, use the
+options_present state.
+.IP \(bu 2
+\fBseparator\fP (\fI\%str\fP) \-\- The character used to separate keys and values. Standard ini files
+use the \(dq=\(dq character. The default is \fB=\fP\&.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP) \-\-
+.sp
+A string value representing encoding of the target ini file. If
+\fBNone\fP is passed, it uses the system default which is likely
+\fButf\-8\fP\&. Default is \fBNone\fP
+.sp
+New in version 3006.10.
+
+
+.UNINDENT
+.TP
+.B Returns
+A dictionary containing list of changes made
+.TP
+.B Return type
+\fI\%dict\fP
+.UNINDENT
+.sp
+Example:
 .INDENT 7.0
 .INDENT 3.5
 .sp
@@ -420935,12 +421208,6 @@ changes dict will contain the sections that changed
 .fi
 .UNINDENT
 .UNINDENT
-.sp
-This will only create empty sections. To also create options, use
-options_present state
-.sp
-options present in file and not specified in sections will be deleted
-changes dict will contain the sections that changed
 .UNINDENT
 .SS salt.states.ipmi
 .SS Manage IPMI devices over LAN
@@ -425459,9 +425726,6 @@ The type of the acl is used for, it can be \(aquser\(aq or \(aqgroup\(aq
 .TP
 .B acl_names
 The list of users or groups
-.TP
-.B perms
-Remove the permissions eg.: rwx
 .TP
 .B recurse
 Set the permissions recursive in the path
@@ -439559,10 +439823,10 @@ Using \fBaptkey: False\fP with \fBkey_url\fP example:
 .sp
 .nf
 .ft C
-deb [signed\-by=/etc/apt/keyrings/salt\-archive\-keyring.gpg arch=amd64] https://repo.saltproject.io/py3/ubuntu/18.04/amd64/latest bionic main:
+deb [signed\-by=/etc/apt/keyrings/salt\-archive\-keyring.gpg arch=amd64] https://packages.broadcom.com/artifactory/saltproject\-deb/ bionic main:
   pkgrepo.managed:
     \- file: /etc/apt/sources.list.d/salt.list
-    \- key_url: https://repo.saltproject.io/py3/ubuntu/18.04/amd64/latest/salt\-archive\-keyring.gpg
+    \- key_url: https://packages.broadcom.com/artifactory/api/security/keypair/SaltProjectKey/public
     \- aptkey: False
 .ft P
 .fi
@@ -439575,7 +439839,7 @@ Using \fBaptkey: False\fP with \fBkeyserver\fP and \fBkeyid\fP:
 .sp
 .nf
 .ft C
-deb [signed\-by=/etc/apt/keyrings/salt\-archive\-keyring.gpg arch=amd64] https://repo.saltproject.io/py3/ubuntu/18.04/amd64/latest bionic main:
+deb [signed\-by=/etc/apt/keyrings/salt\-archive\-keyring.gpg arch=amd64] https://packages.broadcom.com/artifactory/saltproject\-deb/ bionic main:
   pkgrepo.managed:
     \- file: /etc/apt/sources.list.d/salt.list
     \- keyserver: keyserver.ubuntu.com
@@ -458215,7 +458479,7 @@ installed2
 .UNINDENT
 .INDENT 0.0
 .TP
-.B salt.states.zcbuildout.installed(name, config=\(aqbuildout.cfg\(aq, quiet=False, parts=None, user=None, env=(), buildout_ver=None, test_release=False, distribute=None, new_st=None, offline=False, newest=False, python=\(aq/opt/actions\-runner/_work/salt/salt/.tools\-venvs/py3.10/docs/bin/python\(aq, debug=False, verbose=False, unless=None, onlyif=None, use_vt=False, loglevel=\(aqdebug\(aq, **kwargs)
+.B salt.states.zcbuildout.installed(name, config=\(aqbuildout.cfg\(aq, quiet=False, parts=None, user=None, env=(), buildout_ver=None, test_release=False, distribute=None, new_st=None, offline=False, newest=False, python=\(aq/home/runner/work/salt/salt/.tools\-venvs/py3.10/docs/bin/python\(aq, debug=False, verbose=False, unless=None, onlyif=None, use_vt=False, loglevel=\(aqdebug\(aq, **kwargs)
 Install buildout in a specific directory
 .sp
 It is a thin wrapper to modules.buildout.buildout
@@ -467276,36 +467540,61 @@ towncrier \-\-yes \-\-version=3001
 .UNINDENT
 .sp
 The \fItools changelog update\-changelog\-md <version>\fP command will automatically add \fI\-\-yes\fP if \fI\-\-draft\fP is not passed.
-.SS Contributing
+.SS Contributing to Salt: A Guide for Contributors
 .sp
-So you want to contribute to the Salt project? Excellent! You can help
-in a number of ways:
+So, you want to contribute to the Salt project? That\(aqs fantastic! There are many
+ways you can help improve Salt:
 .INDENT 0.0
 .IP \(bu 2
-Use Salt and open well\-written bug reports.
+Use Salt and report bugs with clear, detailed descriptions.
 .IP \(bu 2
-Join a \fI\%working group\fP\&.
+Join a \fI\%working group\fP to
+collaborate with other contributors.
 .IP \(bu 2
-Answer questions on \fI\%irc\fP,
-the \fI\%community Slack\fP,
-the \fI\%salt\-users mailing
-list\fP,
+Answer questions on platforms like
+the \fI\%community Discord\fP,
+the \fI\%salt\-users mailing list\fP,
 \fI\%Server Fault\fP,
 or \fI\%r/saltstack on Reddit\fP\&.
 .IP \(bu 2
-Fix bugs.
+Fix bugs or contribute to the \fI\%documentation\fP\&.
 .IP \(bu 2
-\fI\%Improve the documentation\fP\&.
+Submit workarounds, patches, or code (even without tests).
 .IP \(bu 2
-Provide workarounds, patches, or other code without tests.
-.IP \(bu 2
-Tell other people about problems you solved using Salt.
+Share your experiences and solutions to problems you\(aqve solved using Salt.
 .UNINDENT
+.SS Choosing the Right Branch for Your Pull Request
 .sp
-If you\(aqd like to update docs or fix an issue, you\(aqre going to need the
-Salt repo. The best way to contribute is using
-\fI\%Git\fP\&.
-.SS Environment setup
+We appreciate your contributions to the project! To ensure a smooth and
+efficient workflow, please follow these guidelines when submitting a Pull
+Request. Each type of contribution—whether it\(aqs fixing a bug, adding a feature,
+updating documentation, or fixing tests—should be targeted at the appropriate
+branch. This helps us manage changes effectively and maintain stability across
+versions.
+.INDENT 0.0
+.IP \(bu 2
+\fBBug Fixes:\fP
+.sp
+Create your Pull Request against the oldest supported branch where the bug
+exists. This ensures that the fix can be applied to all relevant versions.
+.IP \(bu 2
+\fBNew Features\fP:
+.sp
+For new features or enhancements, create your Pull Request against the master
+branch.
+.IP \(bu 2
+\fBDocumentation Updates:\fP
+.sp
+Documentation changes should be made against the master branch, unless they
+are related to a bug fix, in which case they should follow the same branch as
+the bug fix.
+.IP \(bu 2
+\fBTest Fixes:\fP
+.sp
+Pull Requests that fix broken or failing tests should be created against the
+oldest supported branch where the issue occurs.
+.UNINDENT
+.SS Setting Up Your Salt Development Environment
 .sp
 To hack on Salt or the docs you\(aqre going to need to set up your
 development environment. If you already have a workflow that you\(aqre
@@ -467428,7 +467717,7 @@ pyenv activate salt
 .sp
 Sweet! Now you\(aqre ready to clone Salt so you can start hacking away! If
 you get stuck at any point, check out the resources at the beginning of
-this guide. IRC and Slack are particularly helpful places to go.
+this guide. Discord and GitHub Discussions are particularly helpful places to go.
 .SS Get the source!
 .sp
 Salt uses the fork and clone workflow for Git contributions. See \fI\%Using
@@ -468094,7 +468383,7 @@ your PR is submitted during the week you should be able to expect some
 kind of communication within that business day. If your tests are
 passing and we\(aqre not in a code freeze, ideally your code will be merged
 that week or month. If you haven\(aqt heard from your assigned reviewer, ping them
-on GitHub, \fI\%irc\fP, or Community Slack.
+on GitHub or \fI\%Community Discord\fP\&.
 .sp
 It\(aqs likely that your reviewer will leave some comments that need
 addressing \- it may be a style change, or you forgot a changelog entry,
@@ -469804,19 +470093,47 @@ operating systems:
 .B Linux:
 .INDENT 7.0
 .IP \(bu 2
+Latest \fBAmazon Linux Arm64\fP
+.IP \(bu 2
+Latest \fBAmazon Linux x86_64\fP
+.IP \(bu 2
+Latest \fBDebian Linux Arm64\fP
+.IP \(bu 2
+Latest \fBDebian Linux x86_64\fP
+.IP \(bu 2
+Latest \fBPhoton OS Arm64\fP
+.IP \(bu 2
+Latest \fBPhoton OS x86_64\fP
+.IP \(bu 2
+Latest \fBRocky Linux Arm64\fP
+.IP \(bu 2
 Latest \fBRocky Linux x86_64\fP
 .IP \(bu 2
-Latest \fBAmazon Linux aarch64\fP
+Latest \fBUbuntu LTS Arm64\fP
 .IP \(bu 2
-Latest \fBUbuntu LTS arm64\fP
-.IP \(bu 2
-Latest \fBArch Linux x86_64\fP
+Latest \fBUbuntu LTS x86_64\fP
 .UNINDENT
 .UNINDENT
+.IP \(bu 2
+.INDENT 2.0
+.TP
+.B Windows Server:
+.INDENT 7.0
 .IP \(bu 2
 Latest \fBWindows Server x86_64\fP
+.UNINDENT
+.UNINDENT
 .IP \(bu 2
-Latest \fBMacOS arm64\fP
+.INDENT 2.0
+.TP
+.B macOS:
+.INDENT 7.0
+.IP \(bu 2
+Latest \fBMacOS Arm64\fP
+.IP \(bu 2
+Latest \fBMacOS x86_64\fP
+.UNINDENT
+.UNINDENT
 .UNINDENT
 .SS Optional OS additions
 .sp
@@ -474404,14 +474721,10 @@ The best way to create new Formula repositories for now is to create a
 repository in your own account on GitHub and notify a SaltStack employee when
 it is ready. We will add you to the Contributors team on the
 \fI\%saltstack\-formulas\fP organization and help you transfer the repository over.
-Ping a SaltStack employee on IRC (\fI\%#salt\fP on LiberaChat), join the
-\fB#formulas\fP channel on the \fI\%salt\-slack\fP (bridged to \fB#saltstack\-formulas\fP
-on LiberaChat) or send an email to the \fI\%salt\-users\fP mailing list.  Note that
-IRC logs are available at \fI\%http://ngxbot.nginx.org/logs/%23salt/\fP and archives
-for FreeNode (up to mid\-June 2021) \fI\%https://logbot\-archive.s3.amazonaws.com/freenode/salt.gz\fP
-and \fI\%https://logbot\-archive.s3.amazonaws.com/freenode/saltstack\-formulas.gz\fP\&.
+Join the \fB#formulas\fP channel on the \fI\%salt\-discord\fP
+or send an email to the \fI\%salt\-users\fP mailing list.
 .sp
-There are a lot of repositories in that organization! Team members can manage
+Team members can manage
 which repositories they are subscribed to on GitHub\(aqs watching page:
 \fI\%https://github.com/watching\fP\&.
 .sp
@@ -476058,7 +476371,7 @@ Create release at \fI\%github\fP
 .IP 30. 4
 Update win\-repo\-ng with new salt versions.
 .IP 31. 4
-Announce release is live to irc, salt\-users, salt\-announce and release slack
+Announce release is live to irc, salt\-users, salt\-announce and release discord
 community channel.
 .UNINDENT
 .SS Bugfix Releases
@@ -476108,7 +476421,7 @@ Create release at \fI\%github\fP
 .IP 18. 4
 Update win\-repo\-ng with new salt versions.
 .IP 19. 4
-Announce release is live to irc, salt\-users, salt\-announce and release slack channel.
+Announce release is live to irc, salt\-users, salt\-announce and release discord channel.
 .UNINDENT
 .SS Salt Coding Style
 .sp
@@ -476219,7 +476532,7 @@ def new_func(msg=\(dq\(dq):
 .UNINDENT
 .sp
 If you are uncertain what version should be used, either consult a core
-developer in IRC or bring this up when opening your \fI\%pull request\fP and a core developer will let you know what
+developer in the Community Discord or bring this up when opening your \fI\%pull request\fP and a core developer will let you know what
 version to add. Typically this will be the next element in the \fI\%periodic table\fP\&.
 .sp
 Similar to the above, when an existing function or state is modified (for
@@ -478092,6 +478405,181 @@ Fix \fBlgpo_reg\fP state to work with User policy \fI\%#64200\fP
 Cloud deployment directories are owned by salt user and group \fI\%#64204\fP
 .IP \(bu 2
 \fBlgpo_reg\fP state now enforces and reports changes to the registry \fI\%#64222\fP
+.UNINDENT
+(release\-3006.10)=
+.SS Salt 3006.10 release notes
+.SS Changelog
+.SS Removed
+.INDENT 0.0
+.IP \(bu 2
+Remove psutil_compat.py file, which should have been removed when RHEL 6 EOL \fI\%#66467\fP
+.IP \(bu 2
+Removed dependency on bsdmainutils package for Debian and Ubuntu \fI\%#67184\fP
+.UNINDENT
+.SS Deprecated
+.INDENT 0.0
+.IP \(bu 2
+Drop Arch Linux support \fI\%#66886\fP
+.IP \(bu 2
+Removed support for end of life Python 3.7 and 3.8 from pre\-commit and requirements \fI\%#67729\fP
+.UNINDENT
+.SS Fixed
+.INDENT 0.0
+.IP \(bu 2
+Commands on Windows are now prefixed with \fBcmd /c\fP so that compound
+commands (commands separated by \fB&&\fP) run properly when using \fBrunas\fP \fI\%#44736\fP
+.IP \(bu 2
+Issue 58969: Fixes an issue with \fBsaltclass.expand_classes_in_order\fP
+function where it was losing nested classes states during class
+expansion. The logic now use \fBsalt.utils.odict.OrderedDict\fP to keep
+the inclusion ordering. \fI\%#58969\fP
+.IP \(bu 2
+Fix issue with RunAs on Windows so that usernames of all numeric characters
+are handled as strings \fI\%#59344\fP
+.IP \(bu 2
+Fixed an issue on Windows where checking success_retcodes when using the
+runas parameter would fail. Now success_retcodes are checked correctly \fI\%#59977\fP
+.IP \(bu 2
+Fix an issue with cmd.script in Windows so that the exit code from a script will
+be passed through to the retcode of the state \fI\%#60884\fP
+.IP \(bu 2
+Fixed an issue uninstalling packages on Windows using pkg.removed where there
+are multiple versions of the same software installed \fI\%#61001\fP
+.IP \(bu 2
+Ensure file clients for runner, wheel, local and caller are available from the client_cache if called upon. \fI\%#61416\fP
+.IP \(bu 2
+Convert stdin string to bytes regardless of stdin_raw_newlines \fI\%#62501\fP
+.IP \(bu 2
+Issue 63933: Fixes an issue with \fBsaltclass.expanded_dict_from_minion\fP
+function where it was passing a reference to minion \fBdict\fP which was
+overridden by nested classes during class expansion. Copy the node
+definition with \fBcopy.deepcopy\fP instead of passing a reference. \fI\%#63933\fP
+.IP \(bu 2
+Fixed an intermittent issue with file.recurse where the state would
+report failure even on success. Makes sure symlinks are created
+after the target file is created \fI\%#64630\fP
+.IP \(bu 2
+The \(aqprofile\(aq outputter does not crash with incorrectly formatted data \fI\%#65104\fP
+.IP \(bu 2
+Updating version comparison for rpm and removed obsolete comparison methods for rpms \fI\%#65443\fP
+.IP \(bu 2
+Fix batch mode hang indefinitely in some scenarios \fI\%#66249\fP
+.IP \(bu 2
+Applying \fBselinux.fcontext_policy_present\fP to a shorter path than an existing entry now works \fI\%#66252\fP
+.IP \(bu 2
+Correct bash\-completion for Debian / Ubuntu \fI\%#66560\fP
+.IP \(bu 2
+Fix minion config option startup_states \fI\%#66592\fP
+.IP \(bu 2
+Fixed an issue with cmd.run with requirements when the shell is not the
+default \fI\%#66596\fP
+.IP \(bu 2
+Fixes an issue when getting account names using the get_name function in the
+win_dacl.py salt util. Capability SIDs return \fBNone\fP\&. SIDs for deleted
+accounts return the SID. SIDs for domain accounts where the system is not
+connected to the domain return the SID. \fI\%#66637\fP
+.IP \(bu 2
+Fixed an issue where \fBstatus.master\fP wasn\(aqt detecting a connection to the
+specified master properly \fI\%#66716\fP
+.IP \(bu 2
+Fixed \fBwin_wua.available\fP when some of the update objects are empty CDispatch
+objects. The \fBavailable\fP function no longer crashes \fI\%#66718\fP
+.IP \(bu 2
+Clean up multiprocessing file handles on minion \fI\%#66726\fP
+.IP \(bu 2
+Fixed nacl.keygen for not yet existing sk_file or pk_file \fI\%#66772\fP
+.IP \(bu 2
+fix yaml output \fI\%#66783\fP
+.IP \(bu 2
+Fixed an issue where enabling \fBgrain_opts\fP in the minion config would cause
+some core grains to be overwritten. \fI\%#66784\fP
+.IP \(bu 2
+Fix an issue where files created using \fBsalt.utils.atomicile.atomic_open()\fP
+were created with restrictive permissions instead of respecting the umask. \fI\%#66786\fP
+.IP \(bu 2
+Fix bad async_method name on AsyncPubClient class \fI\%#66789\fP
+.IP \(bu 2
+Ensure Manjaro ARM reports the correct os_family of Arch. \fI\%#66796\fP
+.IP \(bu 2
+Removed \fBsalt.utils.data.decode\fP usage from the fileserver. This function was
+necessary to support Python 2. This speeds up loading the list cache by 80\-90x. \fI\%#66835\fP
+.IP \(bu 2
+Issue 66837: Fixes an issue with the \fBnetwork.local_port_tcp\fP function
+where it was not parsing the IPv4 mapped IPv6 address correctly. The
+\fB::ffff:\fP is now removed and only the IP address is returned. \fI\%#66837\fP
+.IP \(bu 2
+Better handling output of \fBsystemctl \-\-version\fP with salt.grains.core._systemd \fI\%#66856\fP
+.IP \(bu 2
+Upgrade relenv to 0.17.3. This release includes python 3.10.15, openssl 3.2.3,
+and fixes for pip 24.2. \fI\%#66858\fP
+.IP \(bu 2
+Remove caching of \(aqsystemctl status\(aq in systemd_service to fix automatic daemon\-reload for repeated invocations. \fI\%#66864\fP
+.IP \(bu 2
+Added cryptogrpahy back to base.txt requirements as a dependency \fI\%#66883\fP
+.IP \(bu 2
+Remove \(dqperms\(dq from \fBlinux_acl.list_absent()\fP documentation \fI\%#66891\fP
+.IP \(bu 2
+Ensure minion start event coroutines are run \fI\%#66932\fP
+.IP \(bu 2
+Allow for secure\-boot efivars directory having SecureBoot\-xxx files, not directories with a data file \fI\%#66955\fP
+.IP \(bu 2
+Removed the usage of wmic to get the disk and iscsi grains for Windows. The wmic
+binary is being deprecated. \fI\%#66959\fP
+.IP \(bu 2
+Fixes an issue with the LGPO module when trying to parse ADMX/ADML files
+that have a space in the XMLNS url in the policyDefinitionsResources header. \fI\%#66992\fP
+.IP \(bu 2
+Ensured global dunders like \fBenv\fP are defined in state module that are run in parallel on spawning platforms \fI\%#66996\fP
+.IP \(bu 2
+Filtered unpicklable objects from the context dict when invoking states in parallel on spawning platforms to avoid a crash \fI\%#66999\fP
+.IP \(bu 2
+Update for deprecation of hex in pygit2 1.15.0 and above \fI\%#67017\fP
+.IP \(bu 2
+Fixed blob path for salt.ufw in the firewall tutorial documentation \fI\%#67019\fP
+.IP \(bu 2
+Update locations for bootstrap scripts, to new infrastructure, GitHub releases for bootstrap \fI\%#67020\fP
+.IP \(bu 2
+Constrained the localfs module to operations inside the specified cachedir \fI\%#67031\fP
+.IP \(bu 2
+Added support for dnf5 (backport from 3007) and update to its new command syntax changes since 2023 \fI\%#67057\fP
+.IP \(bu 2
+Recognise newer AMD GPU devices \fI\%#67058\fP
+.IP \(bu 2
+Fix yumpkg module for Python<3.8 \fI\%#67091\fP
+.IP \(bu 2
+Fixed an issue with making changes to the Windows Firewall when the
+AllowInboundRules setting is set to True \fI\%#67122\fP
+.IP \(bu 2
+Added support and tests for dnf5 to services_need_restart for yum packages \fI\%#67177\fP
+.IP \(bu 2
+Use os.walk to traverse git branches, and no longer replace slash \(aq/\(aq in git branch names \fI\%#67722\fP
+.IP \(bu 2
+Set correct virtual grain in systemd based Podman containers \fI\%#67733\fP
+.IP \(bu 2
+Corrected option \-\-upgrades for dnf[5] for function list_upgrades \fI\%#67743\fP
+.IP \(bu 2
+Fix salt\-ssh for hosts that use password as the SSH password \fI\%#67754\fP
+.IP \(bu 2
+Corrected dnf5 option \-\-downloadonly for dnf5 install \fI\%#67769\fP
+.IP \(bu 2
+Upgrade relenv to 0.18.1. Which includes python 3.10.16 and openssl 3.2.4.
+Openssl 3.2.4 fixes CVE\-2024\-12797 and CVE\-2024\-13176 \fI\%#67792\fP
+.IP \(bu 2
+Update jinja2 to 3.1.5, advisories GHSA\-q2x7\-8rv6\-6q7h and GHSA\-gmj6\-6f8f\-6699
+Update urllib3 to 1.26.18 advisories GHSA\-34jh\-p97f\-mpxf \fI\%#67794\fP
+.IP \(bu 2
+Ensure salt\-cloud has salt\-master dependency on Debian and Ubuntu \fI\%#67810\fP
+.IP \(bu 2
+Fix traceback from _send_req_sync method on minion by raising proper timeout error. \fI\%#67891\fP
+.UNINDENT
+.SS Added
+.INDENT 0.0
+.IP \(bu 2
+Issue #33669: Fixes an issue with the \fBini_managed\fP execution module
+where it would always wrap the separator with spaces. Adds a new parameter
+named \fBno_spaces\fP that will not warp the separator with spaces. \fI\%#33669\fP
+.IP \(bu 2
+Enhance json.find_json to return json even when it contains text on the same line of the last closing parenthesis \fI\%#67023\fP
 .UNINDENT
 (release\-3006.2)=
 .SS Salt 3006.2 release notes
@@ -603892,6 +604380,6 @@ minions. \fISee also\fP:
 .SH AUTHOR
 Thomas S. Hatch <thatch45@gmail.com> and many others, please see the Authors file
 .SH COPYRIGHT
-2024
+2025
 .\" Generated by docutils manpage writer.
 .

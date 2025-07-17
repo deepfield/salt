@@ -29,6 +29,7 @@ override_dh_auto_build:
 	export PY=$$(build/onedir/venv/bin/python3 -c 'import sys; sys.stdout.write("{}.{}".format(*sys.version_info)); sys.stdout.flush()') \
 		&& build/onedir/venv/bin/python3 -m pip install -r requirements/static/ci/py$${PY}/tools.txt
 	build/onedir/venv/bin/relenv fetch --python=$${SALT_PYTHON_VERSION}
+	build/onedir/venv/bin/pip3 install relenv[toolchain]
 	build/onedir/venv/bin/relenv toolchain fetch
 # a hack to get this docker dependency built and cached ahead of time because a dep of a dep's build dep does not fall in the constraints of setuputils versioning salt requires
 	build/onedir/venv/bin/python3 -m pip install docker==7.1.0 --no-binary=:all: --use-pep517 --no-cache-dir

@@ -1426,6 +1426,13 @@ def install(name=None, refresh=False, pkgs=None, **kwargs):
             If passed with a list of packages in the ``pkgs`` parameter, the
             version will be ignored.
 
+            .. note::
+                Remember that versions that contain a single `.` will be
+                interpreted as numbers and must be double-quoted. For example,
+                version ``3006.10`` will be rendered as ``3006.1``. To pass
+                ``3006.10`` you'll need to use double-quotes.
+                ``version="'3006.10'"``
+
             CLI Example:
 
              .. code-block:: bash
@@ -1775,24 +1782,23 @@ def install(name=None, refresh=False, pkgs=None, **kwargs):
         # Compute msiexec string
         use_msiexec, msiexec = _get_msiexec(pkginfo[version_num].get("msiexec", False))
 
-        # Build cmd and arguments
-        # cmd and arguments must be separated for use with the task scheduler
-        cmd_shell = os.getenv(
-            "ComSpec", "{}\\system32\\cmd.exe".format(os.getenv("WINDIR"))
-        )
+        # Build cmd and arguments must be separated for use with the task scheduler
         if use_msiexec:
-            arguments = f'"{msiexec}" /I "{cached_pkg}"'
+            cmd = f'"{msiexec}"'
+            arguments = f'/I "{cached_pkg}"'
             if pkginfo[version_num].get("allusers", True):
                 arguments = f"{arguments} ALLUSERS=1"
         else:
-            arguments = f'"{cached_pkg}"'
+            cmd = f'"{cached_pkg}"'
+            arguments = ""
 
         if install_flags:
             arguments = f"{arguments} {install_flags}"
+            arguments = arguments.strip()
 
         # Install the software
         # Check Use Scheduler Option
-        log.debug("PKG : cmd: %s /c %s", cmd_shell, arguments)
+        log.debug("PKG : cmd: %s %s", cmd, arguments)
         log.debug("PKG : pwd: %s", cache_path)
         if pkginfo[version_num].get("use_scheduler", False):
             # Create Scheduled Task
@@ -1801,8 +1807,8 @@ def install(name=None, refresh=False, pkgs=None, **kwargs):
                 user_name="System",
                 force=True,
                 action_type="Execute",
-                cmd=cmd_shell,
-                arguments=f'/c "{arguments}"',
+                cmd=cmd,
+                arguments=arguments,
                 start_in=cache_path,
                 trigger_type="Once",
                 start_date="1975-01-01",
@@ -1854,7 +1860,7 @@ def install(name=None, refresh=False, pkgs=None, **kwargs):
         else:
             # Launch the command
             result = __salt__["cmd.run_all"](
-                f'"{cmd_shell}" /c "{arguments}"',
+                f"{cmd} {arguments}",
                 cache_path,
                 output_loglevel="trace",
                 python_shell=False,
@@ -2162,26 +2168,26 @@ def remove(name=None, pkgs=None, **kwargs):
 
             # Compute msiexec string
             use_msiexec, msiexec = _get_msiexec(pkginfo[target].get("msiexec", False))
-            cmd_shell = os.getenv(
-                "ComSpec", "{}\\system32\\cmd.exe".format(os.getenv("WINDIR"))
-            )
 
             # Build cmd and arguments
             # cmd and arguments must be separated for use with the task scheduler
             if use_msiexec:
                 # Check if uninstaller is set to {guid}, if not we assume its a remote msi file.
                 # which has already been downloaded.
-                arguments = f'"{msiexec}" /X "{cached_pkg}"'
+                cmd = f'"{msiexec}"'
+                arguments = f'/X "{cached_pkg}"'
             else:
-                arguments = f'"{cached_pkg}"'
+                cmd = f'"{cached_pkg}"'
+                arguments = ""
 
             if uninstall_flags:
                 arguments = f"{arguments} {uninstall_flags}"
+                arguments = arguments.strip()
 
             # Uninstall the software
             changed.append(pkgname)
             # Check Use Scheduler Option
-            log.debug("PKG : cmd: %s /c %s", cmd_shell, arguments)
+            log.debug("PKG : cmd: %s %s", cmd, arguments)
             log.debug("PKG : pwd: %s", cache_path)
             if pkginfo[target].get("use_scheduler", False):
                 # Create Scheduled Task
@@ -2190,8 +2196,8 @@ def remove(name=None, pkgs=None, **kwargs):
                     user_name="System",
                     force=True,
                     action_type="Execute",
-                    cmd=cmd_shell,
-                    arguments=f'/c "{arguments}"',
+                    cmd=cmd,
+                    arguments=arguments,
                     start_in=cache_path,
                     trigger_type="Once",
                     start_date="1975-01-01",
@@ -2208,7 +2214,7 @@ def remove(name=None, pkgs=None, **kwargs):
             else:
                 # Launch the command
                 result = __salt__["cmd.run_all"](
-                    f'"{cmd_shell}" /c "{arguments}"',
+                    f"{cmd} {arguments}",
                     output_loglevel="trace",
                     python_shell=False,
                     redirect_stderr=True,

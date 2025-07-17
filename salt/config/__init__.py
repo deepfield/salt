@@ -14,6 +14,7 @@ import urllib.parse
 from copy import deepcopy
 
 import salt.crypt
+import salt.defaults
 import salt.defaults.exitcodes
 import salt.exceptions
 import salt.features
@@ -1002,6 +1003,9 @@ VALID_OPTS = immutabletypes.freeze(
         "signing_algorithm": str,
         # Master publish channel signing
         "publish_signing_algorithm": str,
+        "request_server_ttl": int,
+        "request_server_aes_session": int,
+        "ipc_write_timeout": int,
     }
 )
 
@@ -1659,6 +1663,9 @@ DEFAULT_MASTER_OPTS = immutabletypes.freeze(
         "fileserver_interval": 3600,
         "features": {},
         "publish_signing_algorithm": "PKCS1v15-SHA1",
+        "request_server_aes_session": 0,
+        "request_server_ttl": 0,
+        "ipc_write_timeout": salt.defaults.IPC_WRITE_TIMEOUT,
     }
 )
 

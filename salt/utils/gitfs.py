@@ -14,6 +14,7 @@ import logging
 import multiprocessing
 import os
 import pathlib
+import re
 import shlex
 import shutil
 import stat
@@ -212,7 +213,7 @@ def enforce_types(key, val):
     else:
         try:
             return expected(val)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             log.error(
                 "Failed to enforce type for key=%s with val=%s, falling back "
                 "to a string",
@@ -491,9 +492,7 @@ class GitProvider:
         self._cache_basename = "_"
         if self.id.startswith("__env__"):
             try:
-                self._cache_basename = self.get_checkout_target().replace(
-                    "/", "-"
-                )  # replace '/' with '-' to not cause trouble with file-system
+                self._cache_basename = self.get_checkout_target()
 
             except AttributeError:
                 log.critical(
@@ -2575,6 +2574,55 @@ class GitBase:
                 global_only,
             )
 
+    @classmethod
+    def split_name(cls, remote):
+        """
+        Given a string determine if it is a url or a name and url combination.
+
+        Examples:
+
+           None, "https://github.com/saltstack/salt.git" == split_name("https://github.com/saltstack/salt.git")
+
+           "__env__", "https://github.com/saltstack/salt.git" == split_name("__env__ https://github.com/saltstack/salt.git")
+        """
+        parts = remote.split(" ", 1)
+        if len(parts) == 1:
+            return None, remote
+        maybename, maybeurl = parts
+        if not salt.utils.verify.url(maybename):
+            return maybename, maybeurl
+        return None, remote
+
+    @classmethod
+    def remote_to_url(cls, remote):
+        """
+        Convert a remote to a URL
+
+        Remotes should be in url format with the exception of some ssh remotes
+        which can be in a `git@...` format. This method handles the special ssh
+        remote case by converting to `ssh://` style URLs.
+        """
+        pattern = r"^([^@:/]+)@([^:]+):(.+)$"
+        if match := re.match(pattern, remote):
+            user, host, path = match.groups()
+            if not path.startswith("/"):
+                path = f"/{path}"
+            url = f"ssh://{user}@{host}{path}"
+            return url
+        return remote
+
+    @classmethod
+    def validate_remote(cls, remote):
+        """
+        Validate a remote repository config.
+
+        """
+        _, remote = cls.split_name(remote)
+        url = cls.remote_to_url(remote)
+        if salt.utils.verify.url(url):
+            return True
+        return False
+
     def init_remotes(
         self,
         remotes,
@@ -2626,7 +2674,25 @@ class GitBase:
             per_remote_defaults[param] = enforce_types(key, self.opts[key])
 
         self.remotes = []
-        for remote in remotes:
+        # In case a tuple is passed.
+        remotes = list(remotes)
+        for remote in list(remotes):
+
+            if isinstance(remote, dict):
+                for key in list(remote):
+                    if not self.validate_remote(key):
+                        log.warning("Found bad url data %r", key)
+                        remote.pop(key)
+                        continue
+                # None of the remotes were valid
+                if not remote:
+                    remotes.remove(remote)
+            else:
+                if not self.validate_remote(remote):
+                    log.warning("Found bad url data %r", remote)
+                    remotes.remove(remote)
+                    continue
+
             repo_obj = self.git_providers[self.provider](
                 self.opts,
                 remote,
@@ -2800,6 +2866,33 @@ class GitBase:
                 try:
                     # Find and place fetch_request file for all the other branches for this repo
                     repo_work_hash = os.path.split(repo.get_salt_working_dir())[0]
+                    branches = [
+                        os.path.relpath(path, repo_work_hash)
+                        for (path, subdirs, files) in os.walk(repo_work_hash)
+                        if not subdirs
+                    ]
+
+                    for branch in branches:
+                        # Don't place fetch request in current branch being updated
+                        if branch == repo.get_cache_basename():
+                            continue
+                        branch_salt_dir = salt.utils.path.join(repo_work_hash, branch)
+                        fetch_path = salt.utils.path.join(
+                            branch_salt_dir, "fetch_request"
+                        )
+                        if os.path.isdir(branch_salt_dir):
+                            try:
+                                with salt.utils.files.fopen(fetch_path, "w"):
+                                    pass
+                            except OSError as exc:  # pylint: disable=broad-except
+                                log.error(
+                                    "Failed to make fetch request: %s %s",
+                                    fetch_path,
+                                    exc,
+                                    exc_info=True,
+                                )
+                        else:
+                            log.error("Failed to make fetch request: %s", fetch_path)
                     for branch in os.listdir(repo_work_hash):
                         # Don't place fetch request in current branch being updated
                         if branch == repo.get_cache_basename():
@@ -3217,14 +3310,19 @@ class GitFS(GitBase):
         if os.path.isabs(path):
             return fnd
 
-        dest = salt.utils.path.join(self.cache_root, "refs", tgt_env, path)
-        hashes_glob = salt.utils.path.join(
-            self.hash_cachedir, tgt_env, f"{path}.hash.*"
+        # dest = salt.utils.path.join(self.cache_root, "refs", tgt_env, path)
+        dest = salt.utils.verify.clean_join(
+            self.cache_root, "refs", tgt_env, path, subdir=True
         )
-        blobshadest = salt.utils.path.join(
-            self.hash_cachedir, tgt_env, f"{path}.hash.blob_sha1"
+        hashes_glob = salt.utils.verify.clean_join(
+            self.hash_cachedir, tgt_env, f"{path}.hash.*", subdir=True
         )
-        lk_fn = salt.utils.path.join(self.hash_cachedir, tgt_env, f"{path}.lk")
+        blobshadest = salt.utils.verify.clean_join(
+            self.hash_cachedir, tgt_env, f"{path}.hash.blob_sha1", subdir=True
+        )
+        lk_fn = salt.utils.verify.clean_join(
+            self.hash_cachedir, tgt_env, f"{path}.lk", subdir=True
+        )
         destdir = os.path.dirname(dest)
         hashdir = os.path.dirname(blobshadest)
         if not os.path.isdir(destdir):

@@ -29,12 +29,13 @@
   lint:
     <%- do conclusion_needs.append('lint') %>
     name: Lint
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
     uses: ./.github/workflows/lint-action.yml
     needs:
       - prepare-workflow
     with:
       changed-files: ${{ needs.prepare-workflow.outputs.changed-files }}
+      full: ${{ fromJSON(needs.prepare-workflow.outputs.config)['testrun']['type'] == 'full' }}
 
   <%- endif %>
 
@@ -48,6 +49,8 @@
       - prepare-workflow
     with:
       changed-files: ${{ needs.prepare-workflow.outputs.changed-files }}
+      full: ${{ fromJSON(needs.prepare-workflow.outputs.config)['testrun']['type'] == 'full' }}
+      ci-python-version: "<{ gh_actions_workflows_python_version }>"
 
   <%- endif %>
 
@@ -58,16 +61,17 @@
     name: "Prepare Release: ${{ needs.prepare-workflow.outputs.salt-version }}"
     runs-on:
       - ubuntu-22.04
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
     needs:
       - prepare-workflow
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python <{ gh_actions_workflows_python_version }>
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "<{ gh_actions_workflows_python_version }>"
+
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -185,7 +189,7 @@
   <{ job_name }>:
     <%- do conclusion_needs.append(job_name) %>
     name: Documentation
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
     needs:
       - prepare-workflow
       - build-source-tarball
@@ -202,7 +206,7 @@
 
   <{ job_name }>:
     name: Build Source Tarball
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
     needs:
       - prepare-workflow
       - prepare-release
@@ -210,10 +214,10 @@
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python <{ gh_actions_workflows_python_version }>
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "<{ gh_actions_workflows_python_version }>"
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -233,37 +237,15 @@
 
   <%- endif %>
 
-
-  <%- set job_name = "build-deps-onedir" %>
-  <%- if includes.get(job_name, True) %>
-
-  <{ job_name }>:
-    <%- do conclusion_needs.append(job_name) %>
-    name: Build Onedir Dependencies
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
-    needs:
-      - prepare-workflow
-    uses: ./.github/workflows/build-deps-onedir.yml
-    with:
-      cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "<{ relenv_version }>"
-      python-version: "<{ python_version }>"
-      matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
-      linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
-
-  <%- endif %>
-
   <%- set job_name = "build-salt-onedir" %>
   <%- if includes.get(job_name, True) %>
 
   <{ job_name }>:
     <%- do conclusion_needs.append(job_name) %>
     name: Build Salt Onedir
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['<{ job_name }>'] }}
     needs:
       - prepare-workflow
-      - build-deps-onedir
       - build-source-tarball
     uses: ./.github/workflows/build-salt-onedir.yml
     with:
@@ -271,6 +253,7 @@
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       relenv-version: "<{ relenv_version }>"
       python-version: "<{ python_version }>"
+      ci-python-version: "<{ gh_actions_workflows_python_version }>"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
 
@@ -301,7 +284,7 @@
   combine-all-code-coverage:
     <%- do conclusion_needs.append("combine-all-code-coverage") %>
     name: Combine Code Coverage
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['skip_code_coverage'] == false }}
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['skip_code_coverage'] == false }}
     runs-on: ubuntu-22.04
     env:
       PIP_INDEX_URL: https://pypi.org/simple
@@ -313,10 +296,11 @@
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python <{ gh_actions_workflows_python_version }>
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "<{ gh_actions_workflows_python_version }>"
+
 
       - name: Setup Python Tools Scripts
         id: python-tools-scripts

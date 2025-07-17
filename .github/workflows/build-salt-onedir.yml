@@ -20,6 +20,10 @@ on:
         required: true
         type: string
         description: The version of python to use with relenv
+      ci-python-version:
+        required: true
+        type: string
+        description: The version of python in workflows
       matrix:
         type: string
         required: true
@@ -64,7 +68,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ inputs.ci-python-version }}
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -108,7 +112,7 @@ jobs:
       - ${{ matrix.arch == 'arm64' && 'macos-14' || 'macos-13' }}
     env:
       PIP_INDEX_URL: https://pypi.org/simple
-
+      USE_S3_CACHE: 'false'
     steps:
       - name: "Check cores"
         shell: bash
@@ -120,20 +124,10 @@ jobs:
           t=$(python3 -c 'import random, sys; sys.stdout.write(str(random.randint(1, 15)))'); echo "Sleeping $t seconds"; sleep "$t"
 
       - uses: actions/checkout@v4
-      - name: Set up Python 3.10
+      - name: Set up Python ${{ inputs.ci-python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
-
-      - name: Setup Relenv
-        id: setup-relenv
-        uses: ./.github/actions/setup-relenv
-        with:
-          platform: macos
-          arch: ${{ matrix.arch }}
-          version: ${{ inputs.relenv-version }}
-          cache-seed: ${{ inputs.cache-seed }}
-          python-version: ${{ inputs.python-version }}
+          python-version: "${{ inputs.ci-python-version }}"
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -145,6 +139,16 @@ jobs:
         uses: ./.github/actions/setup-salt-version
         with:
           salt-version: "${{ inputs.salt-version }}"
+
+      - name: Setup Relenv
+        id: setup-relenv
+        uses: ./.github/actions/setup-relenv
+        with:
+          platform: macos
+          arch: ${{ matrix.arch }}
+          version: ${{ inputs.relenv-version }}
+          cache-seed: ${{ inputs.cache-seed }}
+          python-version: ${{ inputs.python-version }}
 
       - name: Install Salt into Relenv Onedir
         uses: ./.github/actions/build-onedir-salt
@@ -166,7 +170,7 @@ jobs:
     runs-on: windows-latest
     env:
       PIP_INDEX_URL: https://pypi.org/simple
-
+      USE_S3_CACHE: 'false'
     steps:
 
       - name: "Throttle Builds"
@@ -176,20 +180,10 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python ${{ inputs.ci-python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
-
-      - name: Setup Relenv
-        id: setup-relenv
-        uses: ./.github/actions/setup-relenv
-        with:
-          platform: windows
-          arch: ${{ matrix.arch }}
-          version: ${{ inputs.relenv-version }}
-          cache-seed: ${{ inputs.cache-seed }}
-          python-version: ${{ inputs.python-version }}
+          python-version: "${{ inputs.ci-python-version }}"
 
       - name: Setup Python Tools Scripts
         uses: ./.github/actions/setup-python-tools-scripts
@@ -201,6 +195,16 @@ jobs:
         uses: ./.github/actions/setup-salt-version
         with:
           salt-version: "${{ inputs.salt-version }}"
+
+      - name: Setup Relenv
+        id: setup-relenv
+        uses: ./.github/actions/setup-relenv
+        with:
+          platform: windows
+          arch: ${{ matrix.arch }}
+          version: ${{ inputs.relenv-version }}
+          cache-seed: ${{ inputs.cache-seed }}
+          python-version: ${{ inputs.python-version }}
 
       - name: Install Salt into Relenv Onedir
         uses: ./.github/actions/build-onedir-salt
