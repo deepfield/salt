@@ -1,3 +1,82 @@
+salt (3006.14+1.df) stable; urgency=medium
+
+  
+  # Removed
+  
+  * Remove psutil_compat.py file, which should have been removed when RHEL 6 EOL [#66467](https://github.com/saltstack/salt/issues/66467)
+  
+  # Deprecated
+  
+  * Drop Arch Linux support [#66886](https://github.com/saltstack/salt/issues/66886)
+  
+  # Fixed
+  
+  * Issue 58969: Fixes an issue with `saltclass.expand_classes_in_order`
+    function where it was losing nested classes states during class
+    expansion. The logic now use `salt.utils.odict.OrderedDict` to keep
+    the inclusion ordering. [#58969](https://github.com/saltstack/salt/issues/58969)
+  * Fixed an issue uninstalling packages on Windows using pkg.removed where there
+    are multiple versions of the same software installed [#61001](https://github.com/saltstack/salt/issues/61001)
+  * Convert stdin string to bytes regardless of stdin_raw_newlines [#62501](https://github.com/saltstack/salt/issues/62501)
+  * Issue 63933: Fixes an issue with `saltclass.expanded_dict_from_minion`
+    function where it was passing a reference to minion `dict` which was
+    overridden by nested classes during class expansion. Copy the node
+    definition with `copy.deepcopy` instead of passing a reference. [#63933](https://github.com/saltstack/salt/issues/63933)
+  * Fixed an intermittent issue with file.recurse where the state would
+    report failure even on success. Makes sure symlinks are created
+    after the target file is created [#64630](https://github.com/saltstack/salt/issues/64630)
+  * The 'profile' outputter does not crash with incorrectly formatted data [#65104](https://github.com/saltstack/salt/issues/65104)
+  * Fix batch mode hang indefinitely in some scenarios [#66249](https://github.com/saltstack/salt/issues/66249)
+  * Applying `selinux.fcontext_policy_present` to a shorter path than an existing entry now works [#66252](https://github.com/saltstack/salt/issues/66252)
+  * Correct bash-completion for Debian / Ubuntu [#66560](https://github.com/saltstack/salt/issues/66560)
+  * Fixed an issue with cmd.run with requirements when the shell is not the
+    default [#66596](https://github.com/saltstack/salt/issues/66596)
+  * Fixed an issue where ``status.master`` wasn't detecting a connection to the
+    specified master properly [#66716](https://github.com/saltstack/salt/issues/66716)
+  * Fixed ``win_wua.available`` when some of the update objects are empty CDispatch
+    objects. The ``available`` function no longer crashes [#66718](https://github.com/saltstack/salt/issues/66718)
+  * Clean up multiprocessing file handles on minion [#66726](https://github.com/saltstack/salt/issues/66726)
+  * Fixed nacl.keygen for not yet existing sk_file or pk_file [#66772](https://github.com/saltstack/salt/issues/66772)
+  * fix yaml output [#66783](https://github.com/saltstack/salt/issues/66783)
+  * Fixed an issue where enabling `grain_opts` in the minion config would cause
+    some core grains to be overwritten. [#66784](https://github.com/saltstack/salt/issues/66784)
+  * Fix an issue where files created using `salt.utils.atomicile.atomic_open()`
+    were created with restrictive permissions instead of respecting the umask. [#66786](https://github.com/saltstack/salt/issues/66786)
+  * Fix bad async_method name on AsyncPubClient class [#66789](https://github.com/saltstack/salt/issues/66789)
+  * Ensure Manjaro ARM reports the correct os_family of Arch. [#66796](https://github.com/saltstack/salt/issues/66796)
+  * Removed ``salt.utils.data.decode`` usage from the fileserver. This function was
+    necessary to support Python 2. This speeds up loading the list cache by 80*90x. [#66835](https://github.com/saltstack/salt/issues/66835)
+  * Issue 66837: Fixes an issue with the `network.local_port_tcp` function
+    where it was not parsing the IPv4 mapped IPv6 address correctly. The
+    ``::ffff:`` is now removed and only the IP address is returned. [#66837](https://github.com/saltstack/salt/issues/66837)
+  * Better handling output of `systemctl --version` with salt.grains.core._systemd [#66856](https://github.com/saltstack/salt/issues/66856)
+  * Upgrade relenv to 0.17.3. This release includes python 3.10.15, openssl 3.2.3,
+    and fixes for pip 24.2. [#66858](https://github.com/saltstack/salt/issues/66858)
+  * Added cryptogrpahy back to base.txt requirements as a dependency [#66883](https://github.com/saltstack/salt/issues/66883)
+  * Remove "perms" from `linux_acl.list_absent()` documentation [#66891](https://github.com/saltstack/salt/issues/66891)
+  * Allow for secure-boot efivars directory having SecureBoot-xxx files, not directories with a data file [#66955](https://github.com/saltstack/salt/issues/66955)
+  * Removed the usage of wmic to get the disk and iscsi grains for Windows. The wmic
+    binary is being deprecated. [#66959](https://github.com/saltstack/salt/issues/66959)
+  * Fixes an issue with the LGPO module when trying to parse ADMX/ADML files
+    that have a space in the XMLNS url in the policyDefinitionsResources header. [#66992](https://github.com/saltstack/salt/issues/66992)
+  * Ensured global dunders like __env__ are defined in state module that are run in parallel on spawning platforms [#66996](https://github.com/saltstack/salt/issues/66996)
+  * Filtered unpicklable objects from the context dict when invoking states in parallel on spawning platforms to avoid a crash [#66999](https://github.com/saltstack/salt/issues/66999)
+  * Update for deprecation of hex in pygit2 1.15.0 and above [#67017](https://github.com/saltstack/salt/issues/67017)
+  * Fixed blob path for salt.ufw in the firewall tutorial documentation [#67019](https://github.com/saltstack/salt/issues/67019)
+  * Update locations for bootstrap scripts, to new infrastructure, GitHub releases for bootstrap [#67020](https://github.com/saltstack/salt/issues/67020)
+  * Recognise newer AMD GPU devices [#67058](https://github.com/saltstack/salt/issues/67058)
+  * Fixed an issue with making changes to the Windows Firewall when the
+    AllowInboundRules setting is set to True [#67122](https://github.com/saltstack/salt/issues/67122)
+  
+  # Added
+  
+  * Issue #33669: Fixes an issue with the ``ini_managed`` execution module
+    where it would always wrap the separator with spaces. Adds a new parameter
+    named ``no_spaces`` that will not warp the separator with spaces. [#33669](https://github.com/saltstack/salt/issues/33669)
+  
+  
+ -- Salt Project Packaging <saltproject-packaging@vmware.com>  Fri, 18 Jul 2025 17:05:28 +0000
+
 salt (3006.14) stable; urgency=medium
 
 

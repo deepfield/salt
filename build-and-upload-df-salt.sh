@@ -20,7 +20,7 @@ ORIGINAL_SALT_VERSION=$(echo "$VERSION" | cut -d'+' -f1)
 relenv fetch
 
 # first setup a venv and install our python dependencies
-relenv create --python=3.10.15 /saltenv
+relenv create --python=3.10.17 /saltenv
 /saltenv/bin/pip3 install pip-tools
 /saltenv/bin/pip-compile --no-emit-index-url --output-file=requirements/static/pkg/py3.10/linux.txt requirements/base.txt requirements/deepfield.txt requirements/static/pkg/linux.in requirements/zeromq.txt
 /saltenv/bin/pip3 install -r requirements/static/ci/py3.10/tools.txt
@@ -33,7 +33,7 @@ echo "$(pwd)/relenv/lib" > /etc/ld.so.conf.d/salt.conf
 ldconfig
 
 # build the debian. This is using the command dpkg-buildpackage which uses the rules file at pkg/debian/rules (this repo)
-DEB_BUILD_MAINT_OPTIONS=optimize=-lto /saltenv/bin/tools pkg build deb --relenv-version 0.18.0 --python-version 3.10.15 --arch x86_64
+DEB_BUILD_MAINT_OPTIONS=optimize=-lto /saltenv/bin/tools pkg build deb --relenv-version 0.19.4 --python-version 3.10.17 --arch x86_64
 
 mkdir debs
 cp ../*.deb debs
