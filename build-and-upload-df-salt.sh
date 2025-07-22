@@ -25,6 +25,9 @@ relenv create --python=3.10.17 /saltenv
 /saltenv/bin/pip-compile --no-emit-index-url --output-file=requirements/static/pkg/py3.10/linux.txt requirements/base.txt requirements/deepfield.txt requirements/static/pkg/linux.in requirements/zeromq.txt
 /saltenv/bin/pip3 install -r requirements/static/ci/py3.10/tools.txt
 
+# Write version to file so salt reports correctly
+echo $VERSION > salt/_version.txt
+
 # set the version we're about to build
 /saltenv/bin/tools changelog update-deb ${VERSION}
 
