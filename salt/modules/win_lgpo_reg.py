@@ -76,20 +76,45 @@ def __virtual__():
     return __virtualname__
 
 
+def _find_value(pol_data, key, v_name):
+    """
+    Helper function to find the value in the registry.pol file. Sometimes the
+    value is prepended by an action that needs to happen with that value, such
+    as `**del.` to delete it from the registry.
+
+    Returns:
+        tuple: A tuple containing: found_key, found_name
+    """
+    found_key = ""
+    found_name = ""
+    for p_key in pol_data:
+        if key.lower() == p_key.lower():
+            found_key = p_key
+            for p_name in pol_data[p_key]:
+                if p_name.lower().startswith("**del."):
+                    if v_name.lower() == p_name.lower().split(".", 1)[1]:
+                        found_name = p_name
+                else:
+                    if v_name.lower() == p_name.lower():
+                        found_name = p_name
+    return found_key, found_name
+
+
 def read_reg_pol(policy_class="Machine"):
     r"""
     Read the contents of the Registry.pol file. Display the contents as a
     human-readable dictionary.
 
     Args:
-        policy_class (str): The registry class to retrieve. Can be one of the
-            following:
+
+        policy_class (:obj:`str`, optional):
+            The registry class to retrieve. Can be one of the following:
 
             - Computer
             - Machine
             - User
 
-            Default is ``Machine``
+            Default is ``Machine``.
 
     Raises:
         SaltInvocationError: Invalid policy class
@@ -127,14 +152,14 @@ def write_reg_pol(data, policy_class="Machine"):
     Args:
         data (dict): A dictionary containing Registry.pol data
 
-        policy_class (str): The registry class to write to. Can be one of the
-            following:
+        policy_class (:obj:`str`, optional):
+            The registry class to write to. Can be one of the following:
 
             - Computer
             - Machine
             - User
 
-            Default is ``Machine``
+            Default is ``Machine``.
 
     Raises:
         SaltInvocationError: Invalid policy class
@@ -181,8 +206,14 @@ def get_value(key, v_name, policy_class="Machine"):
 
         v_name (str): The value name to retrieve
 
-        policy_class (str): The registry class to read from. Can be one of the
-            following:
+        policy_class (:obj:`str`, optional):
+            The registry class to read from. Can be one of the following:
+
+            - Computer
+            - Machine
+            - User
+
+            Default is ``Machine``.
 
     Raises:
         SaltInvocationError: Invalid policy class
@@ -206,14 +237,7 @@ def get_value(key, v_name, policy_class="Machine"):
         raise SaltInvocationError("An invalid policy class was specified")
     pol_data = read_reg_pol(policy_class=policy_class)
 
-    found_key = ""
-    found_name = ""
-    for p_key in pol_data:
-        if key.lower() == p_key.lower():
-            found_key = p_key
-            for p_name in pol_data[p_key]:
-                if v_name.lower() in p_name.lower():
-                    found_name = p_name
+    found_key, found_name = _find_value(pol_data, key, v_name)
 
     if found_key:
         if found_name:
@@ -231,8 +255,14 @@ def get_key(key, policy_class="Machine"):
     Args:
         key (str): The registry key where the values reside
 
-        policy_class (str): The registry class to read from. Can be one of the
-            following:
+        policy_class (:obj:`str`, optional):
+            The registry class to read from. Can be one of the following:
+
+            - Computer
+            - Machine
+            - User
+
+            Default is ``Machine``.
 
     Raises:
         SaltInvocationError: Invalid policy class
@@ -284,7 +314,8 @@ def set_value(
 
         v_data(str): The registry value
 
-        v_type (str): The registry value type. Must be one of the following:
+        v_type (:obj:`str`, optional):
+            The registry value type. Must be one of the following:
 
             - REG_BINARY
             - REG_DWORD
@@ -293,16 +324,16 @@ def set_value(
             - REG_QWORD
             - REG_SZ
 
-            Default is REG_DWORD
+            Default is REG_DWORD.
 
-        policy_class (str): The registry class to write to. Can be one of the
-            following:
+        policy_class (:obj:`str`, optional):
+            The registry class to write to. Can be one of the following:
 
             - Computer
             - Machine
             - User
 
-            Default is ``Machine``
+            Default is ``Machine``.
 
     Raises:
         SaltInvocationError: Invalid policy_class
@@ -310,7 +341,7 @@ def set_value(
         SaltInvocationError: v_data doesn't match v_type
 
     Returns:
-        bool: ``True`` if successful, otherwise ``False``
+        bool: ``True`` if successful, otherwise ``False``.
 
     CLI Example:
 
@@ -346,6 +377,8 @@ def set_value(
         raise SaltInvocationError(msg)
 
     if v_type in ["REG_SZ", "REG_EXPAND_SZ"]:
+        if isinstance(v_data, int):
+            v_data = str(v_data)
         if not isinstance(v_data, str):
             msg = f"{v_type} data must be a string"
             raise SaltInvocationError(msg)
@@ -362,14 +395,7 @@ def set_value(
 
     pol_data = read_reg_pol(policy_class=policy_class)
 
-    found_key = ""
-    found_name = ""
-    for p_key in pol_data:
-        if key.lower() == p_key.lower():
-            found_key = p_key
-            for p_name in pol_data[p_key]:
-                if v_name.lower() == p_name.lower().lstrip("**del."):
-                    found_name = p_name
+    found_key, found_name = _find_value(pol_data, key, v_name)
 
     if found_key:
         if found_name:
@@ -391,15 +417,20 @@ def set_value(
         log.error("LGPO_REG Mod: Failed to write registry.pol file")
         success = False
 
-    if not salt.utils.win_reg.set_value(
-        hive=hive,
-        key=key,
-        vname=v_name,
-        vdata=v_data,
-        vtype=v_type,
-    ):
-        log.error("LGPO_REG Mod: Failed to set registry entry")
-        success = False
+    # We only want to modify the actual registry value if this is machine policy
+    # The user policy will be applied by the user registry.pol when the user
+    # logs in. Setting it here only sets it on the user running the salt minion,
+    # most likely SYSTEM, which doesn't make sense here
+    if policy_class == "Machine":
+        if not salt.utils.win_reg.set_value(
+            hive=hive,
+            key=key,
+            vname=v_name,
+            vdata=v_data,
+            vtype=v_type,
+        ):
+            log.error("LGPO_REG Mod: Failed to set registry entry")
+            success = False
 
     return success
 
@@ -415,14 +446,14 @@ def disable_value(key, v_name, policy_class="machine"):
 
         v_name (str): The registry value name within the key
 
-        policy_class (str): The registry class to write to. Can be one of the
-            following:
+        policy_class (:obj:`str`, optional):
+            The registry class to write to. Can be one of the following:
 
             - Computer
             - Machine
             - User
 
-            Default is ``Machine``
+            Default is ``Machine``.
 
     Raises:
         SaltInvocationError: Invalid policy_class
@@ -451,14 +482,7 @@ def disable_value(key, v_name, policy_class="machine"):
 
     pol_data = read_reg_pol(policy_class=policy_class)
 
-    found_key = ""
-    found_name = ""
-    for p_key in pol_data:
-        if key.lower() == p_key.lower():
-            found_key = p_key
-            for p_name in pol_data[p_key]:
-                if v_name.lower() == p_name.lower().lstrip("**del."):
-                    found_name = p_name
+    found_key, found_name = _find_value(pol_data, key, v_name)
 
     if found_key:
         if found_name:
@@ -486,13 +510,18 @@ def disable_value(key, v_name, policy_class="machine"):
         log.error("LGPO_REG Mod: Failed to write registry.pol file")
         success = False
 
-    ret = salt.utils.win_reg.delete_value(hive=hive, key=key, vname=v_name)
-    if not ret:
-        if ret is None:
-            log.debug("LGPO_REG Mod: Registry key/value already missing")
-        else:
-            log.error("LGPO_REG Mod: Failed to remove registry entry")
-            success = False
+    # We only want to modify the actual registry value if this is machine policy
+    # The user policy will be applied by the user registry.pol when the user
+    # logs in. Setting it here only sets it on the user running the salt minion,
+    # most likely SYSTEM, which doesn't make sense here
+    if policy_class == "Machine":
+        ret = salt.utils.win_reg.delete_value(hive=hive, key=key, vname=v_name)
+        if not ret:
+            if ret is None:
+                log.debug("LGPO_REG Mod: Registry key/value already missing")
+            else:
+                log.error("LGPO_REG Mod: Failed to remove registry entry")
+                success = False
 
     return success
 
@@ -508,14 +537,14 @@ def delete_value(key, v_name, policy_class="Machine"):
 
         v_name (str): The registry value name within the key
 
-        policy_class (str): The registry class to write to. Can be one of the
-            following:
+        policy_class (:obj:`str`, optional):
+            The registry class to write to. Can be one of the following:
 
             - Computer
             - Machine
             - User
 
-            Default is ``Machine``
+            Default is ``Machine``.
 
     Raises:
         SaltInvocationError: Invalid policy_class
@@ -545,14 +574,7 @@ def delete_value(key, v_name, policy_class="Machine"):
 
     pol_data = read_reg_pol(policy_class=policy_class)
 
-    found_key = ""
-    found_name = ""
-    for p_key in pol_data:
-        if key.lower() == p_key.lower():
-            found_key = p_key
-            for p_name in pol_data[p_key]:
-                if v_name.lower() == p_name.lower().lstrip("**del."):
-                    found_name = p_name
+    found_key, found_name = _find_value(pol_data, key, v_name)
 
     if found_key:
         if found_name:
@@ -573,13 +595,18 @@ def delete_value(key, v_name, policy_class="Machine"):
         log.error("LGPO_REG Mod: Failed to write registry.pol file")
         success = False
 
-    ret = salt.utils.win_reg.delete_value(hive=hive, key=key, vname=v_name)
-    if not ret:
-        if ret is None:
-            log.debug("LGPO_REG Mod: Registry key/value already missing")
-        else:
-            log.error("LGPO_REG Mod: Failed to remove registry entry")
-            success = False
+    # We only want to modify the actual registry value if this is machine policy
+    # The user policy will be applied by the user registry.pol when the user
+    # logs in. Setting it here only sets it on the user running the salt minion,
+    # most likely SYSTEM, which doesn't make sense here
+    if policy_class == "Machine":
+        ret = salt.utils.win_reg.delete_value(hive=hive, key=key, vname=v_name)
+        if not ret:
+            if ret is None:
+                log.debug("LGPO_REG Mod: Registry key/value already missing")
+            else:
+                log.error("LGPO_REG Mod: Failed to remove registry entry")
+                success = False
 
     return success
 

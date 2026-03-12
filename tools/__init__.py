@@ -1,6 +1,8 @@
+import json
 import logging
 import pathlib
 import sys
+import textwrap
 
 import ptscripts
 from ptscripts.models import DefaultPipConfig, VirtualEnvPipConfig
@@ -20,6 +22,7 @@ DEFAULT_REQS_CONFIG = DefaultPipConfig(
     ],
 )
 RELEASE_VENV_CONFIG = VirtualEnvPipConfig(
+    pip_requirement="pip>=24.2",
     install_args=[
         f"--constraint={REQUIREMENTS_FILES_PATH / 'constraints.txt'}",
     ],
@@ -46,7 +49,6 @@ ptscripts.register_tools_module("tools.precommit.loader")
 ptscripts.register_tools_module("tools.release", venv_config=RELEASE_VENV_CONFIG)
 ptscripts.register_tools_module("tools.testsuite")
 ptscripts.register_tools_module("tools.testsuite.download")
-ptscripts.register_tools_module("tools.vm")
 
 for name in ("boto3", "botocore", "urllib3"):
     logging.getLogger(name).setLevel(logging.INFO)

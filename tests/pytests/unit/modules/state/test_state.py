@@ -5,7 +5,7 @@
 import datetime
 import logging
 import os
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 
 import pytest
 
@@ -19,7 +19,6 @@ import salt.utils.args
 import salt.utils.files
 import salt.utils.hashutils
 import salt.utils.json
-import salt.utils.odict
 import salt.utils.platform
 import salt.utils.state
 from salt.exceptions import CommandExecutionError, SaltInvocationError
@@ -135,7 +134,7 @@ class MockState:
         opts = {"state_top": "", "pillar": {}}
 
         def __init__(self, opts, pillar_override=None, *args, **kwargs):
-            self.building_highstate = salt.utils.odict.OrderedDict
+            self.building_highstate = OrderedDict
             self.state = MockState.State(opts, pillar_override=pillar_override)
 
         def render_state(self, sls, saltenv, mods, matches, local=False):
@@ -304,7 +303,7 @@ def configure_loader_modules(salt_minion_factory):
         yield {
             state: {
                 "__opts__": {
-                    "cachedir": "/D",
+                    "cachedir": salt_minion_factory.config["cachedir"],
                     "saltenv": None,
                     "sock_dir": "/var/run/salt/master",
                     "transport": "zeromq",
@@ -314,6 +313,7 @@ def configure_loader_modules(salt_minion_factory):
                 "__salt__": {
                     "config.get": config.get,
                     "config.option": MagicMock(return_value=""),
+                    "saltutil.is_running": MagicMock(return_value=[]),
                 },
             },
             config: {"__opts__": {}, "__pillar__": {}},
@@ -897,7 +897,9 @@ def test_sls():
                     True,
                     pillar="A",
                 )
-                with patch.object(os.path, "join", return_value="/D/cache.cache.p"):
+                with patch.object(
+                    os.path, "join", return_value="/D/cache.cache.p"
+                ), patch("salt.utils.state.acquire_queue_lock", MagicMock()):
                     with patch.object(os.path, "isfile", return_value=True), patch(
                         "salt.utils.files.fopen", mock_open(b"")
                     ):
@@ -919,6 +921,10 @@ def test_sls():
                         state.__opts__, {"test": True}
                     ), patch(
                         "salt.utils.files.fopen", mock_open()
+                    ), patch(
+                        "salt.modules.state._prior_running_states", return_value=[]
+                    ), patch(
+                        "salt.utils.state.acquire_queue_lock", MagicMock()
                     ):
                         assert state.sls("core,edit.vim dev", None, None, True)
 
@@ -1298,13 +1304,15 @@ def test__wait(max_queue, call_count, ret_value):
 
 @pytest.mark.parametrize(
     "queue,wait_called,ret_value",
-    [(True, True, None), (False, False, True), (1, True, None)],
+    [(True, False, None), (False, False, True), (1, True, None)],
 )
 def test__check_queue(queue, wait_called, ret_value):
     mock_wait = MagicMock()
     with patch("salt.modules.state._wait", mock_wait), patch(
         "salt.modules.state.running", MagicMock(return_value=True)
-    ), patch.dict(state.__context__, {"retcode": "banana"}):
+    ), patch.dict(state.__context__, {"retcode": "banana"}), patch(
+        "salt.utils.state.acquire_queue_lock", MagicMock()
+    ):
         ret = state._check_queue(queue, {})
         assert mock_wait.called is wait_called
         assert ret is ret_value

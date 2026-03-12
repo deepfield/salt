@@ -1,6 +1,11 @@
+import logging
+import os
+
 import pytest
 
 import salt.crypt as crypt
+import salt.exceptions
+from tests.support.mock import patch
 
 
 @pytest.fixture
@@ -43,7 +48,7 @@ def test__clean_key_mismatch(key_data, linesep):
     assert crypt.clean_key(tst_key) != crypt.clean_key(chk_key)
 
 
-async def test_auth_aes_key_rotation(minion_root, io_loop):
+async def test_auth_aes_key_rotation(minion_root, io_loop, caplog):
     pki_dir = minion_root / "etc" / "salt" / "pki"
     opts = {
         "id": "minion",
@@ -54,12 +59,13 @@ async def test_auth_aes_key_rotation(minion_root, io_loop):
         "acceptance_wait_time": 60,
         "acceptance_wait_time_max": 60,
     }
+    crypt.gen_keys(pki_dir, "minion", opts["keysize"])
     credskey = (
         opts["pki_dir"],  # where the keys are stored
         opts["id"],  # minion ID
         opts["master_uri"],  # master ID
+        str(os.path.getmtime(os.path.join(opts["pki_dir"], "minion.pem"))),
     )
-    crypt.gen_keys(pki_dir, "minion", opts["keysize"])
 
     aes = crypt.Crypticle.generate_key_string()
     session = crypt.Crypticle.generate_key_string()
@@ -78,8 +84,10 @@ async def test_auth_aes_key_rotation(minion_root, io_loop):
 
     assert credskey not in auth.creds_map
 
-    await auth.authenticate()
+    with caplog.at_level(logging.DEBUG):
+        await auth.authenticate()
 
+    assert "Got new master aes key" in caplog.text
     assert credskey in auth.creds_map
     assert auth.creds_map[credskey]["aes"] == aes
     assert auth.creds_map[credskey]["session"] == session
@@ -92,8 +100,10 @@ async def test_auth_aes_key_rotation(minion_root, io_loop):
         "session": session,
     }
 
-    await auth.authenticate()
+    with caplog.at_level(logging.DEBUG):
+        await auth.authenticate()
 
+    assert "The master's aes key has changed" in caplog.text
     assert credskey in auth.creds_map
     assert auth.creds_map[credskey]["aes"] == aes1
     assert auth.creds_map[credskey]["session"] == session
@@ -105,14 +115,16 @@ async def test_auth_aes_key_rotation(minion_root, io_loop):
         "session": session1,
     }
 
-    await auth.authenticate()
+    with caplog.at_level(logging.DEBUG):
+        await auth.authenticate()
 
+    assert "The master's session key has changed" in caplog.text
     assert credskey in auth.creds_map
     assert auth.creds_map[credskey]["aes"] == aes1
     assert auth.creds_map[credskey]["session"] == session1
 
 
-def test_sauth_aes_key_rotation(minion_root, io_loop):
+def test_sauth_aes_key_rotation(minion_root, io_loop, caplog):
 
     pki_dir = minion_root / "etc" / "salt" / "pki"
     opts = {
@@ -124,11 +136,6 @@ def test_sauth_aes_key_rotation(minion_root, io_loop):
         "acceptance_wait_time": 60,
         "acceptance_wait_time_max": 60,
     }
-    credskey = (
-        opts["pki_dir"],  # where the keys are stored
-        opts["id"],  # minion ID
-        opts["master_uri"],  # master ID
-    )
     crypt.gen_keys(pki_dir, "minion", opts["keysize"])
 
     aes = crypt.Crypticle.generate_key_string()
@@ -148,8 +155,10 @@ def test_sauth_aes_key_rotation(minion_root, io_loop):
 
     assert auth._creds is None
 
-    auth.authenticate()
+    with caplog.at_level(logging.DEBUG):
+        auth.authenticate()
 
+    assert "Got new master aes key" in caplog.text
     assert isinstance(auth._creds, dict)
     assert auth._creds["aes"] == aes
     assert auth._creds["session"] == session
@@ -162,8 +171,10 @@ def test_sauth_aes_key_rotation(minion_root, io_loop):
         "session": session,
     }
 
-    auth.authenticate()
+    with caplog.at_level(logging.DEBUG):
+        auth.authenticate()
 
+    assert "The master's aes key has changed" in caplog.text
     assert isinstance(auth._creds, dict)
     assert auth._creds["aes"] == aes1
     assert auth._creds["session"] == session
@@ -175,8 +186,60 @@ def test_sauth_aes_key_rotation(minion_root, io_loop):
         "session": session1,
     }
 
-    auth.authenticate()
+    with caplog.at_level(logging.DEBUG):
+        auth.authenticate()
 
+    assert "The master's session key has changed" in caplog.text
     assert isinstance(auth._creds, dict)
     assert auth._creds["aes"] == aes1
     assert auth._creds["session"] == session1
+
+
+def test_get_key_with_evict_bad_key(tmp_path):
+    key_path = tmp_path / "key"
+    key_path.write_text("asdfasoiasdofaoiu0923jnoiausbd98sb9")
+    with pytest.raises(salt.exceptions.InvalidKeyError):
+        crypt._get_key_with_evict(str(key_path), 1, None)
+
+
+def test_async_auth_cache_private_key(minion_root, io_loop):
+
+    pki_dir = minion_root / "etc" / "salt" / "pki"
+    opts = {
+        "id": "minion",
+        "__role": "minion",
+        "pki_dir": str(pki_dir),
+        "master_uri": "tcp://127.0.0.1:4505",
+        "keysize": 4096,
+        "acceptance_wait_time": 60,
+        "acceptance_wait_time_max": 60,
+    }
+
+    auth = crypt.AsyncAuth(opts, io_loop)
+
+    # The private key is cached.
+    assert isinstance(auth._private_key, crypt.PrivateKey)
+
+    # get_keys returns the cached instance
+    _id = id(auth._private_key)
+    assert _id == id(auth.get_keys())
+
+
+def test_async_auth_cache_token(minion_root, io_loop):
+    pki_dir = minion_root / "etc" / "salt" / "pki"
+    opts = {
+        "id": "minion",
+        "__role": "minion",
+        "pki_dir": str(pki_dir),
+        "master_uri": "tcp://127.0.0.1:4505",
+        "keysize": 4096,
+        "acceptance_wait_time": 60,
+        "acceptance_wait_time_max": 60,
+    }
+
+    auth = crypt.AsyncAuth(opts, io_loop)
+
+    with patch("salt.crypt.private_encrypt") as moc:
+        auth.gen_token("salt")
+        auth.gen_token("salt")
+        moc.assert_called_once()

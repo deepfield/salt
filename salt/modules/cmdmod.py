@@ -102,7 +102,7 @@ def _check_cb(cb_):
 
 def _python_shell_default(python_shell, __pub_jid):
     """
-    Set python_shell default based on remote execution and __opts__['cmd_safe']
+    Set python_shell default based on the shell parameter and __opts__['cmd_safe']
     """
     try:
         # Default to python_shell=True when run directly from remote execution
@@ -259,18 +259,11 @@ def _check_avail(cmd):
 
 def _prep_powershell_cmd(win_shell, cmd, encoded_cmd):
     """
-    Prep cmd when shell is powershell. If we were called by script(), then fake
-    out the Windows shell to run a Powershell script. Otherwise, just run a
-    Powershell command.
+    Prep cmd when shell is powershell.exe or pwsh.exe. If we were called by script(), then
+    run it via the -File parameter, Otherwise, run the command via the -Command parameter.
     """
-    # Find the full path to the shell
-    win_shell = salt.utils.path.which(win_shell)
-
-    if not win_shell:
-        raise CommandExecutionError(f"PowerShell binary not found: {win_shell}")
-
     new_cmd = [
-        f'"{win_shell}"',
+        win_shell,
         "-NonInteractive",
         "-NoProfile",
         "-ExecutionPolicy",
@@ -282,52 +275,16 @@ def _prep_powershell_cmd(win_shell, cmd, encoded_cmd):
     # The third item[2] in each tuple is the name of that method.
     stack = traceback.extract_stack(limit=3)
     if stack[-3][2] == "script":
-        # If this is cmd.script, then we're running a file
-        # You might be tempted to use -File here instead of -Command
-        # The problem with using -File is that any arguments that contain
-        # powershell commands themselves will not be evaluated
-        # See GitHub issue #56195
+        new_cmd.append("-File")
+        new_cmd.extend(cmd)
+    elif encoded_cmd:
+        new_cmd.extend(["-EncodedCommand", cmd])
+    else:
         new_cmd.append("-Command")
         if isinstance(cmd, list):
             cmd = " ".join(cmd)
-        # We need to append $LASTEXITCODE here to return the actual exit code
-        # from the script. Otherwise, it will always return 1 on any non-zero
-        # exit code failure. Issue: #60884
-        new_cmd.append(f'"& {cmd.strip()}; exit $LASTEXITCODE"')
-    elif encoded_cmd:
-        new_cmd.extend(["-EncodedCommand", f'"{cmd}"'])
-    else:
-        # Strip whitespace
-        if isinstance(cmd, list):
-            cmd = " ".join(cmd)
+        new_cmd.append(cmd)
 
-        # Commands that are a specific keyword behave differently. They fail if
-        # you add a "&" to the front. Add those here as we find them:
-        keywords = [
-            "(",
-            "[",
-            "$",
-            "&",
-            ".",
-            "data",
-            "do",
-            "for",
-            "foreach",
-            "if",
-            "trap",
-            "while",
-            "try",
-            "Configuration",
-        ]
-
-        for keyword in keywords:
-            if cmd.lower().startswith(keyword.lower()):
-                new_cmd.extend(["-Command", f'"{cmd.strip()}"'])
-                break
-        else:
-            new_cmd.extend(["-Command", f'"& {cmd.strip()}"'])
-
-    new_cmd = " ".join(new_cmd)
     log.debug(new_cmd)
     return new_cmd
 
@@ -415,9 +372,10 @@ def _run(
 
     change_windows_codepage = False
     if not salt.utils.platform.is_windows():
-        if not os.path.isfile(shell) or not os.access(shell, os.X_OK):
-            msg = f"The shell {shell} is not available"
-            raise CommandExecutionError(msg)
+        if shell:
+            if not os.path.isfile(shell) or not os.access(shell, os.X_OK):
+                msg = f"The shell {shell} is not available"
+                raise CommandExecutionError(msg)
     elif use_vt:  # Memoization so not much overhead
         raise CommandExecutionError("VT not available on windows")
     else:
@@ -446,10 +404,27 @@ def _run(
             if not HAS_WIN_RUNAS:
                 msg = "missing salt/utils/win_runas.py"
                 raise CommandExecutionError(msg)
-        if any(word in shell.lower().strip() for word in ["powershell", "pwsh"]):
-            cmd = _prep_powershell_cmd(shell, cmd, encoded_cmd)
+
+        if shell:
+            # Find the full path to the shell
+            win_shell = salt.utils.path.which(shell)
+            if not win_shell:
+                raise CommandExecutionError(f"shell binary not found: {win_shell}")
+
+            # Prepare the command to be executed
+            win_shell_lower = win_shell.lower()
+            if any(
+                win_shell_lower.endswith(word)
+                for word in ["powershell.exe", "pwsh.exe"]
+            ):
+                cmd = _prep_powershell_cmd(win_shell, cmd, encoded_cmd)
+            elif any(win_shell_lower.endswith(word) for word in ["cmd.exe"]):
+                if python_shell:
+                    cmd = salt.platform.win.prepend_cmd(win_shell, cmd)
+            else:
+                raise CommandExecutionError(f"unsupported shell type: {win_shell}")
         else:
-            cmd = salt.platform.win.prepend_cmd(cmd)
+            win_shell = None
 
     env = _parse_env(env)
 
@@ -482,7 +457,7 @@ def _run(
 
     if runas and salt.utils.platform.is_darwin():
         # We need to insert the user simulation into the command itself and not
-        # just run it from the environment on macOS as that method doesn't work
+        # just run it from the environment on MacOS as that method doesn't work
         # properly when run as root for certain commands.
         if isinstance(cmd, (list, tuple)):
             cmd = " ".join(map(_cmd_quote, cmd))
@@ -555,10 +530,14 @@ def _run(
                     env_cmd.extend(["-u", runas])
                 if group:
                     env_cmd.extend(["-g", group])
-                if shell != DEFAULT_SHELL:
-                    env_cmd.extend(["-s", "--", shell, "-c"])
+                if shell:
+                    if shell != DEFAULT_SHELL:
+                        env_cmd.extend(["-s", "--", shell, "-c"])
+                    else:
+                        env_cmd.extend(["-i", "--"])
                 else:
-                    env_cmd.extend(["-i", "--"])
+                    # do not invoke a shell at all
+                    env_cmd.extend(["--"])
             elif __grains__["os"] in ["FreeBSD"]:
                 env_cmd = [
                     "su",
@@ -571,7 +550,11 @@ def _run(
             elif __grains__["os_family"] in ["AIX"]:
                 env_cmd = ["su", "-", runas, "-c"]
             else:
-                env_cmd = ["su", "-s", shell, "-", runas, "-c"]
+                # su invokes a shell by design
+                if shell:
+                    env_cmd = ["su", "-s", shell, "-", runas, "-c"]
+                else:
+                    env_cmd = ["su", "-", runas, "-c"]
 
             if not salt.utils.pkg.check_bundled():
                 if __grains__["os"] in ["FreeBSD"]:
@@ -745,7 +728,8 @@ def _run(
 
     if (
         python_shell is not True
-        and not salt.utils.platform.is_windows()
+        and shell is not None
+        # and not salt.utils.platform.is_windows()
         and not isinstance(cmd, list)
     ):
         cmd = salt.utils.args.shlex_split(cmd)
@@ -1134,7 +1118,7 @@ def run(
 
         .. warning::
 
-            For versions 2018.3.3 and above on macosx while using runas,
+            For versions 2018.3.3 and above on MacOS while using runas,
             on linux while using run, to pass special characters to the
             command you need to escape the characters on the shell.
 
@@ -1456,12 +1440,12 @@ def shell(
 
     :param str runas: Specify an alternate user to run the command. The default
         behavior is to run as the user under which Salt is running. If running
-        on a Windows minion you must also use the ``password`` argument, and
+        on a Windows minion, you must also use the ``password`` argument, and
         the target user account must be in the Administrators group.
 
         .. warning::
 
-            For versions 2018.3.3 and above on macosx while using runas,
+            For versions 2018.3.3 and above on MacOS while using runas,
             to pass special characters to the command you need to escape
             the characters on the shell.
 
@@ -1633,9 +1617,10 @@ def shell(
 
         salt '*' cmd.shell cmd='sed -e s/=/:/g'
     """
-    if "python_shell" in kwargs:
-        python_shell = kwargs.pop("python_shell")
-    else:
+    # for cmd.shell, we always want to use python_shell, unless otherwise
+    # specified. If it is None, we will make it True
+    python_shell = kwargs.pop("python_shell", True)
+    if python_shell is None:
         python_shell = True
     return run(
         cmd,
@@ -1718,7 +1703,7 @@ def run_stdout(
 
         .. warning::
 
-            For versions 2018.3.3 and above on macosx while using runas,
+            For versions 2018.3.3 and above on MacOS while using runas,
             to pass special characters to the command you need to escape
             the characters on the shell.
 
@@ -1952,7 +1937,7 @@ def run_stderr(
 
         .. warning::
 
-            For versions 2018.3.3 and above on macosx while using runas,
+            For versions 2018.3.3 and above on MacOS while using runas,
             to pass special characters to the command you need to escape
             the characters on the shell.
 
@@ -2188,7 +2173,7 @@ def run_all(
 
         .. warning::
 
-            For versions 2018.3.3 and above on macosx while using runas,
+            For versions 2018.3.3 and above on MacOS while using runas,
             to pass special characters to the command you need to escape
             the characters on the shell.
 
@@ -2465,7 +2450,7 @@ def retcode(
 
         .. warning::
 
-            For versions 2018.3.3 and above on macosx while using runas,
+            For versions 2018.3.3 and above on MacOS while using runas,
             to pass special characters to the command you need to escape
             the characters on the shell.
 
@@ -2607,7 +2592,6 @@ def retcode(
         salt '*' cmd.retcode "grep f" stdin='one\\ntwo\\nthree\\nfour\\nfive\\n'
     """
     python_shell = _python_shell_default(python_shell, kwargs.get("__pub_jid", ""))
-
     ret = _run(
         cmd,
         runas=runas,
@@ -2908,6 +2892,7 @@ def script(
             saltenv = __opts__.get("saltenv", "base")
         except NameError:
             saltenv = "base"
+
     python_shell = _python_shell_default(python_shell, kwargs.get("__pub_jid", ""))
 
     def _cleanup_tempfile(path):
@@ -2939,9 +2924,17 @@ def script(
                 obj_name=cwd, principal=runas, permissions="full_control"
             )
 
-    path = salt.utils.files.mkstemp(
-        dir=cwd, suffix=os.path.splitext(salt.utils.url.split_env(source)[0])[1]
-    )
+    (_, ext) = os.path.splitext(salt.utils.url.split_env(source)[0])
+
+    if salt.utils.platform.is_windows() and not shell:
+        extension_map = {
+            ".bat": "cmd",
+            ".cmd": "cmd",
+            ".ps1": "powershell",
+        }
+        shell = extension_map.get(ext)
+
+    path = salt.utils.files.mkstemp(dir=cwd, suffix=ext)
 
     if template:
         if "pillarenv" in kwargs or "pillar" in kwargs:
@@ -2974,43 +2967,65 @@ def script(
                 "stderr": "",
                 "cache_error": True,
             }
-        shutil.copyfile(fn_, path)
+        try:
+            shutil.copyfile(fn_, path)
+        except FileNotFoundError:
+            _cleanup_tempfile(path)
+            # If a temp working directory was created (Windows), let's remove that
+            if win_cwd:
+                _cleanup_tempfile(cwd)
+            return {
+                "pid": 0,
+                "retcode": 1,
+                "stdout": "",
+                "stderr": "",
+                "cache_error": True,
+            }
     if not salt.utils.platform.is_windows():
         os.chmod(path, 320)
         os.chown(path, __salt__["file.user_to_uid"](runas), -1)
 
-    if salt.utils.platform.is_windows():
-        if shell.lower() not in ["powershell", "pwsh"]:
-            cmd_path = _cmd_quote(path, escape=False)
-        else:
-            cmd_path = path
-    else:
-        cmd_path = _cmd_quote(path)
+    if args:
+        python_shell = False
 
-    ret = _run(
-        cmd_path + " " + str(args) if args else cmd_path,
-        cwd=cwd,
-        stdin=stdin,
-        output_encoding=output_encoding,
-        output_loglevel=output_loglevel,
-        log_callback=log_callback,
-        runas=runas,
-        group=group,
-        shell=shell,
-        python_shell=python_shell,
-        env=env,
-        umask=umask,
-        timeout=timeout,
-        reset_system_locale=reset_system_locale,
-        saltenv=saltenv,
-        use_vt=use_vt,
-        bg=bg,
-        password=password,
-        success_retcodes=success_retcodes,
-        success_stdout=success_stdout,
-        success_stderr=success_stderr,
-        **kwargs,
-    )
+    if isinstance(args, str):
+        args = salt.utils.args.shlex_split(args)
+
+    new_cmd = [path, *args] if args else [path]
+
+    ret = {}
+    try:
+        ret = _run(
+            new_cmd,
+            cwd=cwd,
+            stdin=stdin,
+            output_encoding=output_encoding,
+            output_loglevel=output_loglevel,
+            log_callback=log_callback,
+            runas=runas,
+            group=group,
+            shell=shell,
+            python_shell=python_shell,
+            env=env,
+            umask=umask,
+            timeout=timeout,
+            reset_system_locale=reset_system_locale,
+            saltenv=saltenv,
+            use_vt=use_vt,
+            bg=bg,
+            password=password,
+            success_retcodes=success_retcodes,
+            success_stdout=success_stdout,
+            success_stderr=success_stderr,
+            **kwargs,
+        )
+    except (CommandExecutionError, SaltInvocationError) as exc:
+        log.error(
+            "cmd.script: Unable to run script '%s': %s",
+            new_cmd,
+            exc,
+            exc_info_on_loglevel=logging.DEBUG,
+        )
     _cleanup_tempfile(path)
     # If a temp working directory was created (Windows), let's remove that
     if win_cwd:
@@ -4129,7 +4144,7 @@ def powershell(
     if "python_shell" in kwargs:
         python_shell = kwargs.pop("python_shell")
     else:
-        python_shell = True
+        python_shell = False
 
     if isinstance(cmd, list):
         cmd = " ".join(cmd)
@@ -4147,7 +4162,7 @@ def powershell(
     # caught in a try/catch block. For example, the `Get-WmiObject` command will
     # often return a "Non Terminating Error". To fix this, make sure
     # `-ErrorAction Stop` is set in the powershell command
-    cmd = "try { " + cmd + ' } catch { "{}" }'
+    cmd = "try { " + cmd + " } catch { Write-Error $_ }"
 
     if encode_cmd:
         # Convert the cmd to UTF-16LE without a BOM and base64 encode.
@@ -4159,7 +4174,6 @@ def powershell(
         cmd = salt.utils.stringutils.to_str(cmd)
         encoded_cmd = True
     else:
-        cmd = f"{{ {cmd} }}"
         encoded_cmd = False
 
     # Retrieve the response, while overriding shell with 'powershell'
@@ -4494,7 +4508,7 @@ def powershell_all(
     if "python_shell" in kwargs:
         python_shell = kwargs.pop("python_shell")
     else:
-        python_shell = True
+        python_shell = False
 
     if isinstance(cmd, list):
         cmd = " ".join(cmd)
@@ -4688,7 +4702,7 @@ def run_bg(
 
         .. warning::
 
-            For versions 2018.3.3 and above on macosx while using runas,
+            For versions 2018.3.3 and above on MacOS while using runas,
             to pass special characters to the command you need to escape
             the characters on the shell.
 
@@ -4811,7 +4825,6 @@ def run_bg(
 
         salt '*' cmd.run_bg cmd='ls -lR / | sed -e s/=/:/g > /tmp/dontwait'
     """
-
     python_shell = _python_shell_default(python_shell, kwargs.get("__pub_jid", ""))
     res = _run(
         cmd,

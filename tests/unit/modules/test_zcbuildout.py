@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -30,6 +31,8 @@ pytestmark = [
 ]
 
 KNOWN_VIRTUALENV_BINARY_NAMES = (
+    "artifacts/salt/bin/virtualenv",
+    os.path.join(os.path.dirname(sys.executable), "virtualenv"),
     "virtualenv",
     "virtualenv2",
     "virtualenv-2.6",
@@ -241,6 +244,13 @@ class BuildoutTestCase(Base):
 
     @pytest.mark.slow_test
     def test_get_bootstrap_content(self):
+        # Create the file dynamically
+        tb_dir = os.path.join(self.tdir, "var", "tb", "2")
+        if not os.path.isdir(tb_dir):
+            os.makedirs(tb_dir)
+        with salt.utils.files.fopen(os.path.join(tb_dir, "bootstrap.py"), "w") as fp:
+            fp.write("foo\n")
+
         self.assertEqual(
             "",
             buildout._get_bootstrap_content(os.path.join(self.tdir, "non", "existing")),

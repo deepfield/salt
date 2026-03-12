@@ -64,26 +64,22 @@ def empty_reg_pol_user():
 
 
 @pytest.fixture
-def reg_pol_mach():
-    data_to_write = {
+def pol_data_mach():
+    return {
         "SOFTWARE\\MyKey1": {
-            "MyValue1": {
-                "data": "squidward",
-                "type": "REG_SZ",
-            },
-            "**del.MyValue2": {
-                "data": " ",
-                "type": "REG_SZ",
-            },
+            "MyValue1": {"data": "squidward", "type": "REG_SZ"},
+            "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+            "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
         },
         "SOFTWARE\\MyKey2": {
-            "MyValue3": {
-                "data": ["spongebob", "squarepants"],
-                "type": "REG_MULTI_SZ",
-            },
+            "MyValue3": {"data": ["spongebob", "squarepants"], "type": "REG_MULTI_SZ"},
         },
     }
-    lgpo_reg.write_reg_pol(data_to_write)
+
+
+@pytest.fixture
+def reg_pol_mach(pol_data_mach):
+    lgpo_reg.write_reg_pol(pol_data_mach)
     salt.utils.win_reg.set_value(
         hive="HKLM",
         key="SOFTWARE\\MyKey1",
@@ -91,12 +87,28 @@ def reg_pol_mach():
         vdata="squidward",
         vtype="REG_SZ",
     )
+    assert salt.utils.win_reg.value_exists(
+        hive="HKLM", key="SOFTWARE\\MyKey1", vname="MyValue1"
+    )
+    salt.utils.win_reg.set_value(
+        hive="HKLM",
+        key="SOFTWARE\\MyKey1",
+        vname="MyValue3.exe",
+        vdata="dot_value",
+        vtype="REG_SZ",
+    )
+    assert salt.utils.win_reg.value_exists(
+        hive="HKLM", key="SOFTWARE\\MyKey1", vname="MyValue3.exe"
+    )
     salt.utils.win_reg.set_value(
         hive="HKLM",
         key="SOFTWARE\\MyKey2",
         vname="MyValue3",
         vdata=["spongebob", "squarepants"],
         vtype="REG_MULTI_SZ",
+    )
+    assert salt.utils.win_reg.value_exists(
+        hive="HKLM", key="SOFTWARE\\MyKey2", vname="MyValue3"
     )
     yield
     salt.utils.win_reg.delete_key_recursive(hive="HKLM", key="SOFTWARE\\MyKey1")
@@ -108,32 +120,41 @@ def reg_pol_mach():
 
 
 @pytest.fixture
-def reg_pol_user():
-    data_to_write = {
+def pol_data_user():
+    return {
         "SOFTWARE\\MyKey1": {
-            "MyValue1": {
-                "data": "squidward",
-                "type": "REG_SZ",
-            },
-            "**del.MyValue2": {
-                "data": " ",
-                "type": "REG_SZ",
-            },
+            "MyValue1": {"data": "squidward", "type": "REG_SZ"},
+            "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+            "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
         },
         "SOFTWARE\\MyKey2": {
-            "MyValue3": {
-                "data": ["spongebob", "squarepants"],
-                "type": "REG_MULTI_SZ",
-            },
+            "MyValue3": {"data": ["spongebob", "squarepants"], "type": "REG_MULTI_SZ"},
         },
     }
-    lgpo_reg.write_reg_pol(data_to_write, policy_class="User")
+
+
+@pytest.fixture
+def reg_pol_user(pol_data_user):
+    lgpo_reg.write_reg_pol(pol_data_user, policy_class="User")
     salt.utils.win_reg.set_value(
         hive="HKCU",
         key="SOFTWARE\\MyKey1",
         vname="MyValue1",
         vdata="squidward",
         vtype="REG_SZ",
+    )
+    assert salt.utils.win_reg.value_exists(
+        hive="HKCU", key="SOFTWARE\\MyKey1", vname="MyValue1"
+    )
+    salt.utils.win_reg.set_value(
+        hive="HKCU",
+        key="SOFTWARE\\MyKey1",
+        vname="MyValue3.exe",
+        vdata="dot_value",
+        vtype="REG_SZ",
+    )
+    assert salt.utils.win_reg.value_exists(
+        hive="HKCU", key="SOFTWARE\\MyKey1", vname="MyValue3.exe"
     )
     salt.utils.win_reg.set_value(
         hive="HKCU",
@@ -142,9 +163,14 @@ def reg_pol_user():
         vdata=["spongebob", "squarepants"],
         vtype="REG_MULTI_SZ",
     )
+    assert salt.utils.win_reg.value_exists(
+        hive="HKCU", key="SOFTWARE\\MyKey2", vname="MyValue3"
+    )
     yield
     salt.utils.win_reg.delete_key_recursive(hive="HKCU", key="SOFTWARE\\MyKey1")
     salt.utils.win_reg.delete_key_recursive(hive="HKCU", key="SOFTWARE\\MyKey2")
+    assert not salt.utils.win_reg.key_exists(hive="HKCU", key="SOFTWARE\\MyKey1")
+    assert not salt.utils.win_reg.key_exists(hive="HKCU", key="SOFTWARE\\MyKey2")
     class_info = salt.utils.win_lgpo_reg.CLASS_INFO
     reg_pol_file = class_info["User"]["policy_path"]
     with salt.utils.files.fopen(reg_pol_file, "wb") as f:
@@ -265,9 +291,17 @@ def test_mach_write_reg_pol(empty_reg_pol_mach):
     assert result == data_to_write
 
 
-def test_mach_get_value(reg_pol_mach):
-    expected = {"data": "squidward", "type": "REG_SZ"}
-    result = lgpo_reg.get_value(key="SOFTWARE\\MyKey1", v_name="MyValue1")
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("MyValue", {}),
+        ("MyValue1", {"data": "squidward", "type": "REG_SZ"}),
+        ("MyValue2", {"data": "**del.MyValue2", "type": "REG_SZ"}),
+        ("MyValue3.exe", {"data": "dot_value", "type": "REG_SZ"}),
+    ],
+)
+def test_mach_get_value(reg_pol_mach, name, expected):
+    result = lgpo_reg.get_value(key="SOFTWARE\\MyKey1", v_name=name)
     assert result == expected
 
 
@@ -342,6 +376,7 @@ def test_mach_disable_value(reg_pol_mach):
     expected = {
         "**del.MyValue1": {"data": " ", "type": "REG_SZ"},
         "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+        "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
     }
     result = lgpo_reg.get_key(key=key)
     assert result == expected
@@ -354,6 +389,7 @@ def test_mach_disable_value_no_change(reg_pol_mach):
     expected = {
         "MyValue1": {"data": "squidward", "type": "REG_SZ"},
         "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+        "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
     }
     key = "SOFTWARE\\MyKey1"
     lgpo_reg.disable_value(key=key, v_name="MyValue2")
@@ -368,15 +404,30 @@ def test_mach_delete_value_existing(reg_pol_mach):
     assert result is True
     # Test that the value is actually removed from Registry.pol
     expected = {
-        "**del.MyValue2": {
-            "data": " ",
-            "type": "REG_SZ",
-        },
+        "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+        "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
     }
     result = lgpo_reg.get_key(key=key)
     assert result == expected
     # Test that the registry entry has been removed
     result = salt.utils.win_reg.value_exists(hive="HKLM", key=key, vname="MyValue2")
+    assert result is False
+
+
+def test_mach_delete_value_dot_value(reg_pol_mach):
+    key = "SOFTWARE\\MyKey1"
+    # Test that the command completes successfully
+    result = lgpo_reg.delete_value(key=key, v_name="MyValue3.exe")
+    assert result is True
+    # Test that the value is actually removed from Registry.pol
+    expected = {
+        "MyValue1": {"data": "squidward", "type": "REG_SZ"},
+        "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+    }
+    result = lgpo_reg.get_key(key=key)
+    assert result == expected
+    # Test that the registry entry has been removed
+    result = salt.utils.win_reg.value_exists(hive="HKLM", key=key, vname="MyValue3.exe")
     assert result is False
 
 
@@ -408,11 +459,19 @@ def test_user_write_reg_pol(empty_reg_pol_user):
     assert result == data_to_write
 
 
-def test_user_get_value(reg_pol_user):
-    expected = {"data": "squidward", "type": "REG_SZ"}
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("MyValue", {}),
+        ("MyValue1", {"data": "squidward", "type": "REG_SZ"}),
+        ("MyValue2", {"data": "**del.MyValue2", "type": "REG_SZ"}),
+        ("MyValue3.exe", {"data": "dot_value", "type": "REG_SZ"}),
+    ],
+)
+def test_user_get_value(reg_pol_user, name, expected):
     result = lgpo_reg.get_value(
         key="SOFTWARE\\MyKey1",
-        v_name="MyValue1",
+        v_name=name,
         policy_class="User",
     )
     assert result == expected
@@ -444,17 +503,9 @@ def test_user_set_value(empty_reg_pol_user):
     expected = {"data": 1, "type": "REG_DWORD"}
     result = lgpo_reg.get_value(key=key, v_name=v_name, policy_class="User")
     assert result == expected
-    # Test that the registry value has been set
-    expected = {
-        "hive": "HKCU",
-        "key": key,
-        "vname": v_name,
-        "vdata": 1,
-        "vtype": "REG_DWORD",
-        "success": True,
-    }
-    result = salt.utils.win_reg.read_value(hive="HKCU", key=key, vname=v_name)
-    assert result == expected
+    # Test that the registry value has not been set
+    result = salt.utils.win_reg.value_exists(hive="HKCU", key=key, vname=v_name)
+    assert result is False
 
 
 def test_user_set_value_existing_change(reg_pol_user):
@@ -464,16 +515,9 @@ def test_user_set_value_existing_change(reg_pol_user):
     lgpo_reg.set_value(key=key, v_name=v_name, v_data="1", policy_class="User")
     result = lgpo_reg.get_value(key=key, v_name=v_name, policy_class="User")
     assert result == expected
-    expected = {
-        "hive": "HKCU",
-        "key": key,
-        "vname": v_name,
-        "vdata": 1,
-        "vtype": "REG_DWORD",
-        "success": True,
-    }
-    result = salt.utils.win_reg.read_value(hive="HKCU", key=key, vname=v_name)
-    assert result == expected
+    # Test that the registry value has not been set
+    result = salt.utils.win_reg.value_exists(hive="HKCU", key=key, vname=v_name)
+    assert result is False
 
 
 def test_user_set_value_existing_no_change(reg_pol_user):
@@ -500,18 +544,20 @@ def test_user_disable_value(reg_pol_user):
     expected = {
         "**del.MyValue1": {"data": " ", "type": "REG_SZ"},
         "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+        "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
     }
     result = lgpo_reg.get_key(key=key, policy_class="User")
     assert result == expected
-    # Test that the registry value has been removed
+    # Test that the registry value has not been removed
     result = salt.utils.win_reg.value_exists(hive="HKCU", key=key, vname="MyValue1")
-    assert result is False
+    assert result is True
 
 
 def test_user_disable_value_no_change(reg_pol_user):
     expected = {
         "MyValue1": {"data": "squidward", "type": "REG_SZ"},
         "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+        "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
     }
     key = "SOFTWARE\\MyKey1"
     lgpo_reg.disable_value(key=key, v_name="MyValue2", policy_class="User")
@@ -526,16 +572,31 @@ def test_user_delete_value_existing(reg_pol_user):
     assert result is True
     # Test that the value is actually removed from Registry.pol
     expected = {
-        "**del.MyValue2": {
-            "data": " ",
-            "type": "REG_SZ",
-        },
+        "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+        "MyValue3.exe": {"data": "dot_value", "type": "REG_SZ"},
     }
     result = lgpo_reg.get_key(key=key, policy_class="User")
     assert result == expected
-    # Test that the registry entry has been removed
-    result = salt.utils.win_reg.value_exists(hive="HKCU", key=key, vname="MyValue2")
-    assert result is False
+    # Test that the registry entry has not been removed
+    result = salt.utils.win_reg.value_exists(hive="HKCU", key=key, vname="MyValue1")
+    assert result is True
+
+
+def test_user_delete_value_dot_value(reg_pol_user):
+    key = "SOFTWARE\\MyKey1"
+    # Test that the command completes successfully
+    result = lgpo_reg.delete_value(key=key, v_name="MyValue3.exe", policy_class="User")
+    assert result is True
+    # Test that the value is actually removed from Registry.pol
+    expected = {
+        "MyValue1": {"data": "squidward", "type": "REG_SZ"},
+        "**del.MyValue2": {"data": " ", "type": "REG_SZ"},
+    }
+    result = lgpo_reg.get_key(key=key, policy_class="User")
+    assert result == expected
+    # Test that the registry entry has not been removed
+    result = salt.utils.win_reg.value_exists(hive="HKCU", key=key, vname="MyValue3.exe")
+    assert result is True
 
 
 def test_user_delete_value_no_change(empty_reg_pol_user):
@@ -543,4 +604,19 @@ def test_user_delete_value_no_change(empty_reg_pol_user):
     key = "SOFTWARE\\MyKey1"
     lgpo_reg.delete_value(key=key, v_name="MyValue2", policy_class="User")
     result = lgpo_reg.get_key(key=key, policy_class="User")
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "key, v_name, expected",
+    [
+        ("SOFTWARE\\MyKey1", "MyValue", ("SOFTWARE\\MyKey1", "")),
+        ("SOFTWARE\\MyKey1", "Value1", ("SOFTWARE\\MyKey1", "")),
+        ("SOFTWARE\\MyKey1", "MyValue1", ("SOFTWARE\\MyKey1", "MyValue1")),
+        ("SOFTWARE\\MyKey1", "MyValue2", ("SOFTWARE\\MyKey1", "**del.MyValue2")),
+        ("SOFTWARE\\MyKey1", "MyValue3.exe", ("SOFTWARE\\MyKey1", "MyValue3.exe")),
+    ],
+)
+def test__find_value(pol_data_mach, key, v_name, expected):
+    result = lgpo_reg._find_value(pol_data=pol_data_mach, key=key, v_name=v_name)
     assert result == expected

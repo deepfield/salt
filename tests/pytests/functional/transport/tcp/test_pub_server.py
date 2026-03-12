@@ -1,4 +1,4 @@
-import threading
+import multiprocessing
 import time
 
 import salt.ext.tornado.gen
@@ -28,14 +28,13 @@ async def test_pub_channel(master_opts, minion_opts, io_loop):
         payloads.append(payload)
 
     def on_recv(message):
-        print("ON RECV")
         publishes.append(message)
 
-    thread = threading.Thread(
+    proc = multiprocessing.Process(
         target=server.publish_daemon,
         args=(publish_payload, presence_callback, remove_presence_callback),
     )
-    thread.start()
+    proc.start()
 
     # Wait for socket to bind.
     time.sleep(3)
@@ -43,7 +42,6 @@ async def test_pub_channel(master_opts, minion_opts, io_loop):
     await client.connect(master_opts["publish_port"])
     client.on_recv(on_recv)
 
-    print("Publish message")
     server.publish({"meh": "bah"})
 
     start = time.monotonic()
@@ -53,6 +51,7 @@ async def test_pub_channel(master_opts, minion_opts, io_loop):
             if time.monotonic() - start > 30:
                 assert False, "Message not published after 30 seconds"
     finally:
-        server.io_loop.stop()
-        thread.join()
-        server.io_loop.close(all_fds=True)
+        client.close()
+        server.close()
+        proc.terminate()
+        proc.join()

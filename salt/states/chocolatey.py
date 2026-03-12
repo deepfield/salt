@@ -35,6 +35,7 @@ def installed(
     package_args=None,
     allow_multiple=False,
     execution_timeout=None,
+    virus_check=None,
 ):
     """
     Installs a package if not already installed
@@ -89,6 +90,11 @@ def installed(
             Chocolatey execution timeout value you want to pass to the
             installation process. Default is ``None``.
 
+        virus_check (bool):
+            Enable or disable the chocolatey virus check extension (licensed
+            version only). If not provided then no arguments are added.
+            Default is ``None``.
+
     Example:
 
     .. code-block:: yaml
@@ -120,16 +126,12 @@ def installed(
 
     # Package installed
     else:
-        version_info = __salt__["chocolatey.version"](
-            name=name, check_remote=True, source=source
-        )
-
         full_name = name
-        for pkg in version_info:
+        for pkg in pre_install.keys():
             if name.lower() == pkg.lower():
                 full_name = pkg
 
-        installed_version = version_info[full_name].get("installed")[0]
+        installed_version = pre_install[full_name]
 
         if version:
             if salt.utils.versions.compare(
@@ -174,6 +176,7 @@ def installed(
         package_args=package_args,
         allow_multiple=allow_multiple,
         execution_timeout=execution_timeout,
+        virus_check=virus_check,
     )
 
     if "Running chocolatey failed" not in result:

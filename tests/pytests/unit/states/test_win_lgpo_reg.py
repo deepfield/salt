@@ -183,7 +183,7 @@ def test_virtual_name():
     assert lgpo_reg.__virtual__() == "lgpo_reg"
 
 
-def test_machine_value_present(empty_reg_pol_mach):
+def test_mach_value_present(empty_reg_pol_mach):
     """
     Test value.present in Machine policy
     """
@@ -197,10 +197,14 @@ def test_machine_value_present(empty_reg_pol_mach):
         "changes": {
             "new": {
                 "pol": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue",
                     "data": 1,
                     "type": "REG_DWORD",
                 },
                 "reg": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue",
                     "data": 1,
                     "type": "REG_DWORD",
                 },
@@ -210,14 +214,14 @@ def test_machine_value_present(empty_reg_pol_mach):
                 "reg": {},
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set\nRegistry value set",
         "name": "MyValue",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_present_similar_names(empty_reg_pol_mach):
+def test_mach_value_present_similar_names(empty_reg_pol_mach):
     """
     Test value.present in Machine policy
     """
@@ -249,7 +253,7 @@ def test_machine_value_present_similar_names(empty_reg_pol_mach):
     assert result == expected
 
 
-def test_machine_value_present_enforce(reg_pol_mach):
+def test_mach_value_present_enforce(reg_pol_mach):
     """
     Issue #64222
     Test value.present in Machine policy when the registry changes after the
@@ -284,14 +288,14 @@ def test_machine_value_present_enforce(reg_pol_mach):
                 }
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Registry value set",
         "name": "MyValue3",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_present_existing_change(reg_pol_mach):
+def test_mach_value_present_existing_change(reg_pol_mach):
     """
     Test value.present with existing incorrect value in Machine policy
     """
@@ -324,14 +328,14 @@ def test_machine_value_present_existing_change(reg_pol_mach):
                 },
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set\nRegistry value set",
         "name": "MyValue1",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_present_existing_change_dword(reg_pol_mach):
+def test_mach_value_present_existing_change_dword(reg_pol_mach):
     """
     Test value.present with existing incorrect value in Machine policy
     """
@@ -360,14 +364,14 @@ def test_machine_value_present_existing_change_dword(reg_pol_mach):
                 },
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set\nRegistry value set",
         "name": "MyValue3",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_present_existing_no_change(reg_pol_mach):
+def test_mach_value_present_existing_no_change(reg_pol_mach):
     """
     Test value.present with existing correct value in Machine policy
     """
@@ -386,7 +390,7 @@ def test_machine_value_present_existing_no_change(reg_pol_mach):
     assert result == expected
 
 
-def test_machine_value_present_test_true(empty_reg_pol_mach):
+def test_mach_value_present_test_true(empty_reg_pol_mach):
     """
     Test value.present with test=True in Machine policy
     """
@@ -406,7 +410,47 @@ def test_machine_value_present_test_true(empty_reg_pol_mach):
     assert result == expected
 
 
-def test_machine_value_present_existing_disabled(reg_pol_mach):
+def test_mach_value_present_test_true_existing_no_change(reg_pol_mach):
+    """
+    Test value.present with existing correct value in Machine policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_present(
+            name="MyValue1",
+            key="SOFTWARE\\MyKey1",
+            v_data="squidward",
+            v_type="REG_SZ",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value already present\nRegistry value already present",
+        "name": "MyValue1",
+        "result": True,
+    }
+    assert result == expected
+
+
+def test_mach_value_present_test_true_existing_change(reg_pol_mach):
+    """
+    Test value.present with existing incorrect value in Machine policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_present(
+            name="MyValue1",
+            key="SOFTWARE\\MyKey1",
+            v_data="2",
+            v_type="REG_DWORD",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value will be set\nRegistry value will be set",
+        "name": "MyValue1",
+        "result": None,
+    }
+    assert result == expected
+
+
+def test_mach_value_present_existing_disabled(reg_pol_mach):
     """
     Test value.present with existing value that is disabled in Machine policy
     """
@@ -424,6 +468,8 @@ def test_machine_value_present_existing_disabled(reg_pol_mach):
                     "type": "REG_DWORD",
                 },
                 "reg": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue2",
                     "data": 2,
                     "type": "REG_DWORD",
                 },
@@ -436,14 +482,14 @@ def test_machine_value_present_existing_disabled(reg_pol_mach):
                 "reg": {},
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set\nRegistry value set",
         "name": "MyValue2",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_disabled(empty_reg_pol_mach):
+def test_mach_value_disabled(empty_reg_pol_mach):
     """
     Test value.disabled in Machine policy
     """
@@ -455,20 +501,22 @@ def test_machine_value_disabled(empty_reg_pol_mach):
         "changes": {
             "new": {
                 "pol": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue1",
                     "data": "**del.MyValue1",
                     "type": "REG_SZ",
                 },
             },
             "old": {"pol": {}},
         },
-        "comment": "Registry policy value disabled",
+        "comment": "Policy value disabled",
         "name": "MyValue1",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_disabled_existing_change(reg_pol_mach):
+def test_mach_value_disabled_existing_change(reg_pol_mach):
     """
     Test value.disabled with an existing value that is not disabled in Machine
     policy
@@ -489,17 +537,22 @@ def test_machine_value_disabled_existing_change(reg_pol_mach):
                 "pol": {
                     "data": "squidward",
                 },
-                "reg": {"data": "squidward", "type": "REG_SZ"},
+                "reg": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue1",
+                    "data": "squidward",
+                    "type": "REG_SZ",
+                },
             },
         },
-        "comment": "Registry policy value disabled",
+        "comment": "Policy value disabled\nRegistry value deleted",
         "name": "MyValue1",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_disabled_existing_no_change(reg_pol_mach):
+def test_mach_value_disabled_existing_no_change(reg_pol_mach):
     """
     Test value.disabled with an existing disabled value in Machine policy
     """
@@ -509,14 +562,14 @@ def test_machine_value_disabled_existing_no_change(reg_pol_mach):
     )
     expected = {
         "changes": {},
-        "comment": "Registry policy value already disabled",
+        "comment": "Policy value already disabled\nRegistry value already deleted",
         "name": "MyValue2",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_disabled_test_true(empty_reg_pol_mach):
+def test_mach_value_disabled_test_true(empty_reg_pol_mach):
     """
     Test value.disabled when test=True in Machine policy
     """
@@ -527,14 +580,51 @@ def test_machine_value_disabled_test_true(empty_reg_pol_mach):
         )
     expected = {
         "changes": {},
-        "comment": "Policy value will be disabled",
+        "comment": "Registry value already deleted\n" "Policy value will be disabled",
         "name": "MyValue",
         "result": None,
     }
     assert result == expected
 
 
-def test_machine_value_absent(reg_pol_mach):
+def test_mach_value_disabled_test_true_existing_change(reg_pol_mach):
+    """
+    Test value.disabled with an existing value that is not disabled in Machine
+    policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_disabled(
+            name="MyValue1",
+            key="SOFTWARE\\MyKey1",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value will be disabled\nRegistry value will be deleted",
+        "name": "MyValue1",
+        "result": None,
+    }
+    assert result == expected
+
+
+def test_mach_value_disabled_test_true_existing_no_change(reg_pol_mach):
+    """
+    Test value.disabled with an existing disabled value in Machine policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_disabled(
+            name="MyValue2",
+            key="SOFTWARE\\MyKey1",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value already disabled\nRegistry value already deleted",
+        "name": "MyValue2",
+        "result": True,
+    }
+    assert result == expected
+
+
+def test_mach_value_absent(reg_pol_mach):
     """
     Test value.absent in Machine policy
     """
@@ -544,37 +634,41 @@ def test_machine_value_absent(reg_pol_mach):
             "new": {"pol": {}, "reg": {}},
             "old": {
                 "pol": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue1",
                     "data": "squidward",
                     "type": "REG_SZ",
                 },
                 "reg": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue1",
                     "data": "squidward",
                     "type": "REG_SZ",
                 },
             },
         },
-        "comment": "Registry policy value deleted",
+        "comment": "Policy value deleted\nRegistry value deleted",
         "name": "MyValue1",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_absent_no_change(empty_reg_pol_mach):
+def test_mach_value_absent_no_change(empty_reg_pol_mach):
     """
     Test value.absent when the value is already absent in Machine policy
     """
     result = lgpo_reg.value_absent(name="MyValue1", key="SOFTWARE\\MyKey1")
     expected = {
         "changes": {},
-        "comment": "Registry policy value already deleted",
+        "comment": "Policy value already deleted\nRegistry value already deleted",
         "name": "MyValue1",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_absent_disabled(reg_pol_mach):
+def test_mach_value_absent_disabled(reg_pol_mach):
     """
     Test value.absent when the value is disabled in Machine policy
     """
@@ -584,19 +678,21 @@ def test_machine_value_absent_disabled(reg_pol_mach):
             "new": {"pol": {}},
             "old": {
                 "pol": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue2",
                     "data": "**del.MyValue2",
                     "type": "REG_SZ",
                 },
             },
         },
-        "comment": "Registry policy value deleted",
+        "comment": "Policy value deleted",
         "name": "MyValue2",
         "result": True,
     }
     assert result == expected
 
 
-def test_machine_value_absent_test_true(reg_pol_mach):
+def test_mach_value_absent_test_true(reg_pol_mach):
     """
     Test value.absent with test=True in Machine policy
     """
@@ -606,6 +702,36 @@ def test_machine_value_absent_test_true(reg_pol_mach):
         "changes": {},
         "comment": "Policy value will be deleted\nRegistry value will be deleted",
         "name": "MyValue1",
+        "result": None,
+    }
+    assert result == expected
+
+
+def test_mach_value_absent_test_true_no_change(empty_reg_pol_mach):
+    """
+    Test value.absent when the value is already absent in Machine policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_absent(name="MyValue1", key="SOFTWARE\\MyKey1")
+    expected = {
+        "changes": {},
+        "comment": "Policy value already deleted\nRegistry value already deleted",
+        "name": "MyValue1",
+        "result": True,
+    }
+    assert result == expected
+
+
+def test_mach_value_absent_test_true_disabled(reg_pol_mach):
+    """
+    Test value.absent when the value is disabled in Machine policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_absent(name="MyValue2", key="SOFTWARE\\MyKey1")
+    expected = {
+        "changes": {},
+        "comment": "Registry value already deleted\nPolicy value will be deleted",
+        "name": "MyValue2",
         "result": None,
     }
     assert result == expected
@@ -626,20 +752,17 @@ def test_user_value_present(empty_reg_pol_user):
         "changes": {
             "new": {
                 "pol": {
-                    "data": 1,
-                    "type": "REG_DWORD",
-                },
-                "reg": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue",
                     "data": 1,
                     "type": "REG_DWORD",
                 },
             },
             "old": {
                 "pol": {},
-                "reg": {},
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set",
         "name": "MyValue",
         "result": True,
     }
@@ -698,23 +821,15 @@ def test_user_value_present_existing_change(reg_pol_user):
                     "data": 2,
                     "type": "REG_DWORD",
                 },
-                "reg": {
-                    "data": 2,
-                    "type": "REG_DWORD",
-                },
             },
             "old": {
                 "pol": {
                     "data": "squidward",
                     "type": "REG_SZ",
                 },
-                "reg": {
-                    "data": "squidward",
-                    "type": "REG_SZ",
-                },
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set",
         "name": "MyValue1",
         "result": True,
     }
@@ -738,20 +853,14 @@ def test_user_value_present_existing_change_dword(reg_pol_user):
                 "pol": {
                     "data": 1,
                 },
-                "reg": {
-                    "data": 1,
-                },
             },
             "old": {
                 "pol": {
                     "data": 0,
                 },
-                "reg": {
-                    "data": 0,
-                },
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set",
         "name": "MyValue3",
         "result": True,
     }
@@ -771,7 +880,7 @@ def test_user_value_present_existing_no_change(reg_pol_user):
     )
     expected = {
         "changes": {},
-        "comment": "Policy value already present\nRegistry value already present",
+        "comment": "Policy value already present",
         "name": "MyValue1",
         "result": True,
     }
@@ -792,9 +901,51 @@ def test_user_value_present_test_true(empty_reg_pol_user):
         )
     expected = {
         "changes": {},
-        "comment": "Policy value will be set\nRegistry value will be set",
+        "comment": "Policy value will be set",
         "name": "MyValue",
         "result": None,
+    }
+    assert result == expected
+
+
+def test_user_value_present_test_true_existing_change(reg_pol_user):
+    """
+    Test value.present with existing incorrect value in User policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_present(
+            name="MyValue1",
+            key="SOFTWARE\\MyKey1",
+            v_data="2",
+            v_type="REG_DWORD",
+            policy_class="User",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value will be set",
+        "name": "MyValue1",
+        "result": None,
+    }
+    assert result == expected
+
+
+def test_user_value_present_test_true_existing_no_change(reg_pol_user):
+    """
+    Test value.present with existing correct value in User policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_present(
+            name="MyValue1",
+            key="SOFTWARE\\MyKey1",
+            v_data="squidward",
+            v_type="REG_SZ",
+            policy_class="User",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value already present",
+        "name": "MyValue1",
+        "result": True,
     }
     assert result == expected
 
@@ -817,20 +968,15 @@ def test_user_value_present_existing_disabled(reg_pol_user):
                     "data": 2,
                     "type": "REG_DWORD",
                 },
-                "reg": {
-                    "data": 2,
-                    "type": "REG_DWORD",
-                },
             },
             "old": {
                 "pol": {
                     "data": "**del.MyValue2",
                     "type": "REG_SZ",
                 },
-                "reg": {},
             },
         },
-        "comment": "Registry policy value has been set",
+        "comment": "Policy value set",
         "name": "MyValue2",
         "result": True,
     }
@@ -848,13 +994,15 @@ def test_user_value_disabled(empty_reg_pol_user):
         "changes": {
             "new": {
                 "pol": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue1",
                     "data": "**del.MyValue1",
                     "type": "REG_SZ",
                 },
             },
             "old": {"pol": {}},
         },
-        "comment": "Registry policy value disabled",
+        "comment": "Policy value disabled",
         "name": "MyValue1",
         "result": True,
     }
@@ -877,19 +1025,14 @@ def test_user_value_disabled_existing_change(reg_pol_user):
                 "pol": {
                     "data": "**del.MyValue1",
                 },
-                "reg": {},
             },
             "old": {
                 "pol": {
                     "data": "squidward",
                 },
-                "reg": {
-                    "data": "squidward",
-                    "type": "REG_SZ",
-                },
             },
         },
-        "comment": "Registry policy value disabled",
+        "comment": "Policy value disabled",
         "name": "MyValue1",
         "result": True,
     }
@@ -907,7 +1050,7 @@ def test_user_value_disabled_existing_no_change(reg_pol_user):
     )
     expected = {
         "changes": {},
-        "comment": "Registry policy value already disabled",
+        "comment": "Policy value already disabled",
         "name": "MyValue2",
         "result": True,
     }
@@ -933,6 +1076,45 @@ def test_user_value_disabled_test_true(empty_reg_pol_user):
     assert result == expected
 
 
+def test_user_value_disabled_test_true_existing_change(reg_pol_user):
+    """
+    Test value.disabled with an existing value that is not disabled in User
+    policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_disabled(
+            name="MyValue1",
+            key="SOFTWARE\\MyKey1",
+            policy_class="User",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value will be disabled",
+        "name": "MyValue1",
+        "result": None,
+    }
+    assert result == expected
+
+
+def test_user_value_disabled_test_true_existing_no_change(reg_pol_user):
+    """
+    Test value.disabled with an existing disabled value in User policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_disabled(
+            name="MyValue2",
+            key="SOFTWARE\\MyKey1",
+            policy_class="User",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value already disabled",
+        "name": "MyValue2",
+        "result": True,
+    }
+    assert result == expected
+
+
 def test_user_value_absent(reg_pol_user):
     """
     Test value.absent in User policy
@@ -946,20 +1128,17 @@ def test_user_value_absent(reg_pol_user):
         "changes": {
             "new": {
                 "pol": {},
-                "reg": {},
             },
             "old": {
                 "pol": {
-                    "data": "squidward",
-                    "type": "REG_SZ",
-                },
-                "reg": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue1",
                     "data": "squidward",
                     "type": "REG_SZ",
                 },
             },
         },
-        "comment": "Registry policy value deleted",
+        "comment": "Policy value deleted",
         "name": "MyValue1",
         "result": True,
     }
@@ -977,7 +1156,7 @@ def test_user_value_absent_no_change(empty_reg_pol_user):
     )
     expected = {
         "changes": {},
-        "comment": "Registry policy value already deleted",
+        "comment": "Policy value already deleted",
         "name": "MyValue1",
         "result": True,
     }
@@ -998,12 +1177,14 @@ def test_user_value_absent_disabled(reg_pol_user):
             "new": {"pol": {}},
             "old": {
                 "pol": {
+                    "key": "SOFTWARE\\MyKey1",
+                    "name": "MyValue2",
                     "data": "**del.MyValue2",
                     "type": "REG_SZ",
                 },
             },
         },
-        "comment": "Registry policy value deleted",
+        "comment": "Policy value deleted",
         "name": "MyValue2",
         "result": True,
     }
@@ -1022,8 +1203,46 @@ def test_user_value_absent_test_true(reg_pol_user):
         )
     expected = {
         "changes": {},
-        "comment": "Policy value will be deleted\nRegistry value will be deleted",
+        "comment": "Policy value will be deleted",
         "name": "MyValue1",
+        "result": None,
+    }
+    assert result == expected
+
+
+def test_user_value_absent_test_true_no_change(empty_reg_pol_user):
+    """
+    Test value.absent when the value is already absent in User policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_absent(
+            name="MyValue1",
+            key="SOFTWARE\\MyKey1",
+            policy_class="User",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value already deleted",
+        "name": "MyValue1",
+        "result": True,
+    }
+    assert result == expected
+
+
+def test_user_value_absent_test_true_disabled(reg_pol_user):
+    """
+    Test value.absent when the value is disabled in User policy
+    """
+    with patch.dict(lgpo_reg.__opts__, {"test": True}):
+        result = lgpo_reg.value_absent(
+            name="MyValue2",
+            key="SOFTWARE\\MyKey1",
+            policy_class="User",
+        )
+    expected = {
+        "changes": {},
+        "comment": "Policy value will be deleted",
+        "name": "MyValue2",
         "result": None,
     }
     assert result == expected

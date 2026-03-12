@@ -1807,6 +1807,33 @@ the priority of optimization level(s) Salt's module loader should prefer.
       - 0
       - 1
 
+.. conf_minion:: lazy_loader_strict_matching
+
+``lazy_loader_strict_matching``
+-------------------------------
+
+.. versionadded:: 3006.19
+
+Default: ``False``
+
+.. versionchanged:: 3008.0
+    The default will change to ``True`` in version 3008.0.
+
+Reduces memory usage by skipping expensive module file searches.
+
+When disabled (default), the loader searches for modules in three stages:
+
+1. Exact filename match (e.g., ``test.py`` for module ``test``)
+2. Partial filename matches (files containing "test" in the name)
+3. Expensive search through every module file
+
+When enabled, stage 3 is skipped. Virtual module names (``__virtualname__``)
+continue to work if stages 1 or 2 find the module file.
+
+.. code-block:: yaml
+
+    lazy_loader_strict_matching: True
+
 Minion Execution Module Management
 ==================================
 
@@ -2316,8 +2343,12 @@ Default: ``False``
 
 Instead of failing immediately when another state run is in progress, a value
 of ``True`` will queue the new state run to begin running once the other has
-finished. This option starts a new thread for each queued state run, so use
-this option sparingly.
+finished.
+
+The queue is implemented as a disk-based FIFO queue, minimizing memory usage
+regardless of queue depth. Jobs in the state queue are processed by a background
+thread and will bypass :conf_minion:`process_count_max` limits when they are
+ready to execute, ensuring they are not starved by other workloads.
 
 .. code-block:: yaml
 
@@ -3282,8 +3313,14 @@ Default: ``-1``
 
 Limit the maximum amount of processes or threads created by ``salt-minion``.
 This is useful to avoid resource exhaustion in case the minion receives more
-publications than it is able to handle, as it limits the number of spawned
-processes or threads. ``-1`` is the default and disables the limit.
+publications than it is able to handle.
+
+When this limit is reached, new jobs are queued to a disk-based FIFO queue and
+processed as slots become available. ``-1`` is the default and disables the limit.
+
+.. note::
+    State runs managed by :conf_minion:`state_queue` will bypass this limit
+    once they are released from the state queue.
 
 .. code-block:: yaml
 

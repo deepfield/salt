@@ -6,6 +6,7 @@ Run processes as a different user in Windows
 import ctypes
 import logging
 import os
+import subprocess
 import time
 
 from salt.exceptions import CommandExecutionError
@@ -56,12 +57,15 @@ def split_username(username):
     Splits out the username from the domain name and returns both.
     """
     domain = "."
-    user_name = username
-    if "@" in username:
-        user_name, domain = username.split("@")
-    if "\\" in username:
-        domain, user_name = username.split("\\")
-    return user_name, domain
+    user_name = str(username)
+    # Domain users with User Principal Name (UPN): user@DOMAIN
+    if "@" in user_name:
+        user_name, domain = user_name.split("@", maxsplit=1)
+        domain = domain.removesuffix(".local")
+    # Domain users with Down-Level Logon Name: DOMAIN\user
+    if "\\" in user_name:
+        domain, user_name = user_name.split("\\", maxsplit=1)
+    return str(user_name), str(domain)
 
 
 def create_env(user_token, inherit, timeout=1):
@@ -126,6 +130,12 @@ def runas(cmd, username, password=None, cwd=None):
         log.debug("Unable to impersonate SYSTEM user")
         impersonation_token = None
         win32api.CloseHandle(th)
+
+    if isinstance(cmd, (list, tuple)):
+        # CreateProcess parameter lpCommandLine must be a string.
+        # Since it is called directly and not via the subprocess module,
+        # the arguments must be processed manually.
+        cmd = subprocess.list2cmdline(cmd)
 
     # Impersonation of the SYSTEM user failed. Fallback to an un-privileged
     # runas.

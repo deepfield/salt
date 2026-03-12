@@ -34,14 +34,10 @@ on:
         type: boolean
         default: false
         description: Skip running the Salt packages test suite.
-      skip-salt-pkg-download-test-suite:
-        type: boolean
-        default: false
-        description: Skip running the Salt packages download test suite.
 
 env:
   COLUMNS: 190
-  CACHE_SEED: SEED-5  # Bump the number to invalidate all caches
+  CACHE_SEED: SEED-1  # Bump the number to invalidate all caches
   RELENV_DATA: "${{ github.workspace }}/.relenv"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   RAISE_DEPRECATIONS_RUNTIME_ERRORS: "1"
@@ -240,7 +236,7 @@ jobs:
       - name: Define workflow config
         id: workflow-config
         run: |
-          tools ci workflow-config${{ inputs.skip-salt-test-suite && ' --skip-tests' || '' }}${{ inputs.skip-salt-pkg-test-suite && ' --skip-pkg-tests' || '' }}${{ inputs.skip-salt-pkg-download-test-suite && ' --skip-pkg-download-tests' || '' }} ${{ steps.setup-salt-version.outputs.salt-version }} ${{ github.event_name }} changed-files.json
+          tools ci workflow-config${{ inputs.skip-salt-test-suite && ' --skip-tests' || '' }}${{ inputs.skip-salt-pkg-test-suite && ' --skip-pkg-tests' || '' }} ${{ steps.setup-salt-version.outputs.salt-version }} ${{ github.event_name }} changed-files.json
 
       - name: Check Contents of generated testrun-changed-files.txt
         if: ${{ fromJSON(steps.workflow-config.outputs.config)['testrun']['type'] != 'full' }}
@@ -263,7 +259,9 @@ jobs:
     with:
       cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
       changed-files: ${{ needs.prepare-workflow.outputs.changed-files }}
-      pre-commit-version: "3.0.4"
+      pre-commit-version: "4.3.0"
+      ci-python-version: "3.11"
+      full: ${{ fromJSON(needs.prepare-workflow.outputs.config)['testrun']['type'] == 'full' }}
 
   lint:
     name: Lint
@@ -335,12 +333,19 @@ jobs:
 
       - name: Generate MAN Pages
         shell: bash
-        if: ${{ startsWith(github.event.ref, 'refs/tags') == false }}
         env:
           LATEST_RELEASE: "${{ needs.prepare-workflow.outputs.salt-version }}"
           SALT_ON_SALTSTACK: "1"
         run: |
           tools docs man
+
+      - name: Upload MAN Pages Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: man-pages-${{ needs.prepare-workflow.outputs.salt-version }}
+          path: doc/man/
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Update Changelog
         shell: bash
@@ -366,7 +371,7 @@ jobs:
         if: ${{ startsWith(github.event.ref, 'refs/tags') == false }}
         uses: ./.github/actions/setup-pre-commit
         with:
-          version: "3.0.4"
+          version: "4.3.0"
           cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
 
       - name: Commit Changes
@@ -400,7 +405,7 @@ jobs:
     if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-docs'] }}
     needs:
       - prepare-workflow
-      - build-source-tarball
+      - prepare-release
     uses: ./.github/workflows/build-docs.yml
     with:
       cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
@@ -412,6 +417,7 @@ jobs:
     needs:
       - prepare-workflow
       - prepare-release
+      - build-docs
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -432,6 +438,20 @@ jobs:
         with:
           salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
 
+      - name: Download Man Pages Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: salt-${{ needs.prepare-workflow.outputs.salt-version }}-docs-man.tar.xz
+
+      - name: Extract and Remove Man Pages Artifact
+        shell: bash
+        run: |
+          pwd
+          mkdir -p doc/man
+          tar -xvf salt-${{ needs.prepare-workflow.outputs.salt-version }}-docs-man.tar.xz -C doc/man
+          ls -la doc/man
+          rm salt-${{ needs.prepare-workflow.outputs.salt-version }}-docs-man.tar.xz
+
       - name: Build Source Tarball
         uses: ./.github/actions/build-source-tarball
         with:
@@ -442,58 +462,60 @@ jobs:
     if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-salt-onedir'] }}
     needs:
       - prepare-workflow
+      - build-docs
       - build-source-tarball
     uses: ./.github/workflows/build-salt-onedir.yml
     with:
       cache-seed: ${{ needs.prepare-workflow.outputs.cache-seed }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      relenv-version: "0.19.4"
-      python-version: "3.10.17"
+      relenv-version: "0.22.4"
+      python-version: "3.10.19"
       ci-python-version: "3.11"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
 
   build-pkgs-onedir:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-pkgs'] }}
+    name: Build Onedir Packages
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-pkgs'] }}
     needs:
       - prepare-workflow
+      - build-source-tarball
       - build-salt-onedir
     uses: ./.github/workflows/build-packages.yml
     secrets: inherit
     with:
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      relenv-version: "0.19.4"
-      python-version: "3.10.17"
+      relenv-version: "0.22.4"
+      python-version: "3.10.19"
       ci-python-version: "3.11"
       source: "onedir"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
       environment: staging
-      sign-macos-packages: false
+      sign-macos-packages: true
       sign-rpm-packages: ${{ inputs.sign-rpm-packages }}
       sign-windows-packages: ${{ inputs.sign-windows-packages }}
 
   build-pkgs-src:
-    name: Build Packages
-    if: ${{ fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-pkgs'] }}
+    name: Build Source Packages
+    if: ${{ !cancelled() && fromJSON(needs.prepare-workflow.outputs.config)['jobs']['build-pkgs'] && fromJSON(needs.prepare-workflow.outputs.config)['testrun']['type'] == 'full' }}
     needs:
       - prepare-workflow
-      - build-salt-onedir
+      - build-source-tarball
     uses: ./.github/workflows/build-packages.yml
     secrets: inherit
     with:
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}
-      relenv-version: "0.19.4"
-      python-version: "3.10.17"
+      relenv-version: "0.22.4"
+      python-version: "3.10.19"
       ci-python-version: "3.11"
       source: "src"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
       environment: staging
-      sign-macos-packages: false
+      sign-macos-packages: true
       sign-rpm-packages: ${{ inputs.sign-rpm-packages }}
       sign-windows-packages: ${{ inputs.sign-windows-packages }}
   build-ci-deps:
@@ -506,10 +528,10 @@ jobs:
     with:
       nox-session: ci-test-onedir
       nox-version: 2022.8.7
-      python-version: "3.10.17"
+      python-version: "3.10.19"
       ci-python-version: "3.11"
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.17
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.19
       nox-archive-hash: "${{ needs.prepare-workflow.outputs.nox-archive-hash }}"
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['build-matrix']) }}
       linux_arm_runner: ${{ fromJSON(needs.prepare-workflow.outputs.config)['linux_arm_runner'] }}
@@ -526,7 +548,7 @@ jobs:
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
       nox-version: 2022.8.7
       ci-python-version: "3.11"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.17
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.19
       skip-code-coverage: true
       testing-releases: ${{ needs.prepare-workflow.outputs.testing-releases }}
       matrix: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['pkg-test-matrix']) }}
@@ -544,7 +566,7 @@ jobs:
       ci-python-version: "3.11"
       testrun: ${{ toJSON(fromJSON(needs.prepare-workflow.outputs.config)['testrun']) }}
       salt-version: "${{ needs.prepare-workflow.outputs.salt-version }}"
-      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.17
+      cache-prefix: ${{ needs.prepare-workflow.outputs.cache-seed }}|3.10.19
       skip-code-coverage: true
       workflow-slug: staging
       default-timeout: 180

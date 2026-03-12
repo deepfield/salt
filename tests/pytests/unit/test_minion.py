@@ -1,6 +1,9 @@
+import contextlib
 import copy
 import logging
 import os
+import signal
+import time
 import uuid
 
 import pytest
@@ -121,6 +124,7 @@ def test_send_req_fires_completion_event(event, minion_opts):
             else:
                 rtn = minion._send_req_sync(load, timeout)
 
+            fire_event_called = False
             # get the
             for idx, call in enumerate(event.mock_calls, 1):
                 if "fire_event" in call[0]:
@@ -430,61 +434,69 @@ def test_process_count_max(minion_opts):
     Tests that the _handle_decoded_payload function does not spawn more than the configured amount of processes,
     as per process_count_max.
     """
+    start_mock = MagicMock(return_value=True)
+
+    def mock_proc_side_effect(*args, **kwargs):
+        m = MagicMock(name="MockProcess")
+        m.is_alive.return_value = True
+        m.start = start_mock
+        return m
+
+    @contextlib.asynccontextmanager
+    async def mock_await_lock(*args, **kwargs):
+        yield
+
     with patch("salt.minion.Minion.ctx", MagicMock(return_value={})), patch(
-        "salt.utils.process.SignalHandlingProcess.start",
+        "salt.minion.SignalHandlingProcess",
+        MagicMock(side_effect=mock_proc_side_effect),
+    ), patch(
+        "salt.minion.SignalHandlingProcess.join",
         MagicMock(return_value=True),
     ), patch(
-        "salt.utils.process.SignalHandlingProcess.join",
-        MagicMock(return_value=True),
+        "os.path.exists", MagicMock(return_value=True)
     ), patch(
-        "salt.utils.minion.running", MagicMock(return_value=[])
+        "os.makedirs", MagicMock()
     ), patch(
-        "salt.ext.tornado.gen.sleep",
-        MagicMock(return_value=salt.ext.tornado.concurrent.Future()),
+        "salt.utils.files.fopen", MagicMock()
+    ), patch(
+        "salt.payload.dump", MagicMock()
+    ), patch(
+        "salt.utils.files.await_lock", side_effect=mock_await_lock
+    ), patch(
+        "salt.loader.grains", MagicMock(return_value={"id": "foo", "os": "Linux"})
     ):
         process_count_max = 10
         minion_opts["__role"] = "minion"
         minion_opts["minion_jid_queue_hwm"] = 100
         minion_opts["process_count_max"] = process_count_max
+        # cachedir needed for lock
+        minion_opts["cachedir"] = "/tmp/salt_test_cache"
 
         io_loop = salt.ext.tornado.ioloop.IOLoop()
         minion = salt.minion.Minion(minion_opts, jid_queue=[], io_loop=io_loop)
         try:
-
-            # mock gen.sleep to throw a special Exception when called, so that we detect it
-            class SleepCalledException(Exception):
-                """Thrown when sleep is called"""
-
-            salt.ext.tornado.gen.sleep.return_value.set_exception(
-                SleepCalledException()
-            )
-
-            # up until process_count_max: gen.sleep does not get called, processes are started normally
+            # up until process_count_max: processes are started normally
             for i in range(process_count_max):
-                mock_data = {"fun": "foo.bar", "jid": i}
+                mock_data = {"fun": "foo.bar", "jid": str(i)}
                 io_loop.run_sync(
                     lambda data=mock_data: minion._handle_decoded_payload(data)
                 )
-                assert (
-                    salt.utils.process.SignalHandlingProcess.start.call_count == i + 1
-                )
+                assert start_mock.call_count == i + 1
                 assert len(minion.jid_queue) == i + 1
-                salt.utils.minion.running.return_value += [i]
 
-            # above process_count_max: gen.sleep does get called, JIDs are created but no new processes are started
-            mock_data = {"fun": "foo.bar", "jid": process_count_max + 1}
+            # above process_count_max: Queue logic kicks in
+            mock_data = {"fun": "foo.bar", "jid": str(process_count_max + 1)}
 
-            pytest.raises(
-                SleepCalledException,
-                lambda: io_loop.run_sync(
-                    lambda: minion._handle_decoded_payload(mock_data)
-                ),
-            )
-            assert (
-                salt.utils.process.SignalHandlingProcess.start.call_count
-                == process_count_max
-            )
+            # Run execution
+            io_loop.run_sync(lambda: minion._handle_decoded_payload(mock_data))
+
+            # Assert NO new process started
+            assert start_mock.call_count == process_count_max
+            # Assert Job was queued (payload dumped)
+            assert salt.payload.dump.called
+            # Assert JID added to active queue (deduplication cache)
             assert len(minion.jid_queue) == process_count_max + 1
+
         finally:
             minion.destroy()
 
@@ -608,6 +620,48 @@ def test_minion_module_refresh_beacons_refresh(minion_opts):
             assert hasattr(minion.beacons, "beacons")
             assert "service.beacon" in minion.beacons.beacons
             minion.destroy()
+        finally:
+            minion.destroy()
+
+
+def test_beacons_refresh_preserves_interval_map(minion_opts):
+    """
+    Tests that 'beacons_refresh' preserves the interval_map so that
+    beacon intervals are not reset during module refresh.
+    """
+    with patch("salt.minion.Minion.ctx", MagicMock(return_value={})), patch(
+        "salt.utils.process.SignalHandlingProcess.start",
+        MagicMock(return_value=True),
+    ), patch(
+        "salt.utils.process.SignalHandlingProcess.join",
+        MagicMock(return_value=True),
+    ):
+        try:
+            minion = salt.minion.Minion(
+                minion_opts,
+                io_loop=salt.ext.tornado.ioloop.IOLoop(),
+            )
+            minion.schedule = salt.utils.schedule.Schedule(
+                minion_opts, {}, returners={}
+            )
+
+            minion.module_refresh()
+            assert hasattr(minion, "beacons")
+            assert hasattr(minion.beacons, "interval_map")
+
+            test_interval_map = {"status": 50, "diskusage": 30}
+            minion.beacons.interval_map = test_interval_map.copy()
+
+            old_beacons = minion.beacons
+
+            minion.beacons_refresh()
+
+            assert minion.beacons is not old_beacons
+
+            assert minion.beacons.interval_map == test_interval_map
+            assert minion.beacons.interval_map["status"] == 50
+            assert minion.beacons.interval_map["diskusage"] == 30
+
         finally:
             minion.destroy()
 
@@ -989,7 +1043,7 @@ def test_minion_grains_refresh_pre_exec_false(minion_opts):
             load_grains=False,
         )
         try:
-            ret = minion._handle_decoded_payload(mock_data).result()
+            minion.io_loop.run_sync(lambda: minion._handle_decoded_payload(mock_data))
             grainsfunc.assert_not_called()
         finally:
             minion.destroy()
@@ -1012,7 +1066,7 @@ def test_minion_grains_refresh_pre_exec_true(minion_opts):
             load_grains=False,
         )
         try:
-            ret = minion._handle_decoded_payload(mock_data).result()
+            minion.io_loop.run_sync(lambda: minion._handle_decoded_payload(mock_data))
             grainsfunc.assert_called()
         finally:
             minion.destroy()
@@ -1167,3 +1221,59 @@ async def test_connect_master_general_exception_error(minion_opts, connect_maste
     # The first call raised an error which caused minion.destroy to get called,
     # the second call is a success.
     assert minion.connect_master.calls == 2
+
+
+async def test_minion_manager_async_stop(io_loop, minion_opts, tmp_path):
+    """
+    Ensure MinionManager's stop method works correctly and calls the
+    stop_async method
+    """
+
+    # Setup sock_dir with short path
+    minion_opts["sock_dir"] = str(tmp_path / "sock")
+
+    # Create a MinionManager instance with a mock minion
+    mm = salt.minion.MinionManager(minion_opts)
+    minion = MagicMock(name="minion")
+    parent_signal_handler = MagicMock(name="parent_signal_handler")
+    mm.minions.append(minion)
+
+    # Set up event publisher and event
+    mm._bind()
+    assert mm.event_publisher is not None
+    assert mm.event is not None
+
+    # Check io_loop is running
+    assert mm.io_loop._running
+
+    # Set up values for event to send
+    load = {"key": "value"}
+    ret = {}
+
+    # Connect to minion event bus
+    with salt.utils.event.get_event("minion", opts=minion_opts, listen=True) as event:
+
+        # call stop to start stopping the minion
+        # mm.stop(signal.SIGTERM, parent_signal_handler)
+        mm.stop(signal.SIGTERM, parent_signal_handler)
+
+        # Fire an event and ensure we can still read it back while the minion
+        # is stopping
+        await event.fire_event_async(load, "test_event", timeout=1)
+        start = time.time()
+        while time.time() - start < 5:
+            ret = event.get_event(tag="test_event", wait=0.3)
+            if ret:
+                break
+            await salt.ext.tornado.gen.sleep(0.3)
+    assert "key" in ret
+    assert ret["key"] == "value"
+
+    # Sleep to allow stop_async to complete
+    await salt.ext.tornado.gen.sleep(5)
+
+    # Ensure stop_async has been called
+    minion.destroy.assert_called_once()
+    parent_signal_handler.assert_called_once_with(signal.SIGTERM, None)
+    assert mm.event_publisher is None
+    assert mm.event is None

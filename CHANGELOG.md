@@ -7,6 +7,244 @@ Versions are `MAJOR.PATCH`.
 
 # Changelog
 
+## 3006.23 (2026-02-23)
+
+No significant changes.
+
+
+## 3006.22 (2026-02-21)
+
+
+### Fixed
+
+- Fix nftables module check function doesn't understand that braces are optional [#67078](https://github.com/saltstack/salt/issues/67078)
+- Fix issue with upstream Netbox API which changed api/ipam/prefixes output to use "scope" FK instead of "site" [#68375](https://github.com/saltstack/salt/issues/68375)
+- Fixed SyntaxWarning for invalid escape sequence '\d' in salt/ext/tornado/util.py
+  on Python 3.12+ by converting the re_unescape docstring to a raw string. [#68568](https://github.com/saltstack/salt/issues/68568)
+- Raise exception if systemd-run is not found when scope is enabled
+
+  Instead of returning None when the systemd-run command is not found
+  — which causes the command to fail with an unclear error —
+  an exception is now raised, helping to identify the real issue. [#68720](https://github.com/saltstack/salt/issues/68720)
+- Remove bundled wheels from virtualenv [#68740](https://github.com/saltstack/salt/issues/68740)
+
+
+### Added
+
+- Add an option in the chocolatey state and module so that the viruscheck flag can be controlled. [#68558](https://github.com/saltstack/salt/issues/68558)
+
+
+## 3006.21 (2026-02-11)
+
+
+### Fixed
+
+- Fix user.info when querying domain users. Uses DsGetDcName for more
+  dependable domain controller lookup. [#68612](https://github.com/saltstack/salt/issues/68612)
+- Fixed minion instability and resource exhaustion under high load by implementing resource-aware job queuing and backpressure. Added `process_count_max` enforcement and disk-based queuing to prevent unbounded process spawning and file descriptor exhaustion. [#68703](https://github.com/saltstack/salt/issues/68703)
+
+
+## 3006.20 (2026-02-05)
+
+
+### Fixed
+
+- Support attrlist in ldap.managed [#53364](https://github.com/saltstack/salt/issues/53364)
+- Fix a stacktrace that happens then the minion fails to connect to a master. [#62780](https://github.com/saltstack/salt/issues/62780)
+- Add virtualenv to package dependencies so venv module can work without ensurepip. [#68388](https://github.com/saltstack/salt/issues/68388)
+- Preserve interval_map on beacon refresh to ensure beacons are still fired when we refresh beacons. [#68548](https://github.com/saltstack/salt/issues/68548)
+- Fixed Arista EOS Napalm driver to return json data, by allowing to pass cli kwargs to driver. [#68550](https://github.com/saltstack/salt/issues/68550)
+- Fix an issue with Value names that contain periods, such as scrnsave.exe [#68565](https://github.com/saltstack/salt/issues/68565)
+- Fixed output of lgpo_reg states. Comments and result are now correct. [#68566](https://github.com/saltstack/salt/issues/68566)
+- Update bootstrap-salt.sh to v2026-01-15 [#68640](https://github.com/saltstack/salt/issues/68640)
+- Update bootstrap to v2026-01-22 [#68656](https://github.com/saltstack/salt/issues/68656)
+- Upgrade relenv to 0.22.3
+  * Upgrade OpenSSL to 3.6.1 - Fixes CVE-2025-15467
+  * Upgrade SQLite to 3.51.2.0
+  * Upgrade XZ to 5.8.2
+  * Upgrade ncurses to6.6
+  * Upgrade expat to2.7.4 [#68682](https://github.com/saltstack/salt/issues/68682)
+
+
+## 3006.19 (2026-01-09)
+
+
+### Fixed
+
+- Fixed a typo in salt.util.cloud to detect the version of winrm [#68561](https://github.com/saltstack/salt/issues/68561)
+- Patched tornado for BDSA-2025-60811 and BDSA-2025-60812 [#68594](https://github.com/saltstack/salt/issues/68594)
+- Increase pub and pub_async timeouts on LocalClient from 5 to 15 for better
+  handling of network delays. This change only affects programatic usage of
+  LocalClient. [#68597](https://github.com/saltstack/salt/issues/68597)
+- Added `lazy_loader_strict_matching` minion configuration option to reduce memory usage by skipping the expensive fallback search that scans through every module file. [#68606](https://github.com/saltstack/salt/issues/68606)
+- Upgrade relenv to 0.22.2:
+  * Remove RPATH from shared libraries that do not link to any other libraries in
+    our environment.
+  * Ensure we always return a proper and consistang default python version for
+    create, fetch, build commands. [#68607](https://github.com/saltstack/salt/issues/68607)
+- Mitigate CVE-2025-13836 in nxos utils [#68618](https://github.com/saltstack/salt/issues/68618)
+
+
+## 3006.18 (2025-12-18)
+
+
+### Fixed
+
+- Fixed ssh_auth.present to respect provided `options` when read keys from source file [#60769](https://github.com/saltstack/salt/issues/60769)
+- Fixed ssh_auth regexp to handle key types with @ or . [#61299](https://github.com/saltstack/salt/issues/61299)
+- Fixed a TypeError exception thrown by ssh_known_hosts.present when the specified user account does not exist [#62049](https://github.com/saltstack/salt/issues/62049)
+- Fix runtime error on OpenBSD by adding support for the osfullname grain [#64189](https://github.com/saltstack/salt/issues/64189)
+- Forward minion list events in Syndic cluster mode to enable proper job completion detection [#68319](https://github.com/saltstack/salt/issues/68319)
+- Fixed ssh_auth.present and ssh.absent to report changes if some key was added or removed when reading keys from a source file [#68403](https://github.com/saltstack/salt/issues/68403)
+- Test loader now prevents .pyc files from being written during test run using
+  sys.dont_write_bytecode = True. This results in 3x faster test execution and
+  reduced IO operations [#68412](https://github.com/saltstack/salt/issues/68412)
+- Fixes a issue where variable names were reversed when detecting domain and
+  username from a username. [#68450](https://github.com/saltstack/salt/issues/68450)
+- Changed the glob pattern for APT sources from `**/*.list` to `*.list`, in line
+  with APT's default pattern in sources.list.d [#68475](https://github.com/saltstack/salt/issues/68475)
+- Remove unwanted error log from aptpkg [#68485](https://github.com/saltstack/salt/issues/68485)
+- Use the packaging library instead of the deprecated pkg_resources library for
+  working with version to avoid a deprecation warning when running salt
+  commands [#68487](https://github.com/saltstack/salt/issues/68487)
+- Fixes issue with disk.tune passing incorrect args for read-only and read-write
+  to blockdev.
+  Improves argument and error handling in blockdev. [#68490](https://github.com/saltstack/salt/issues/68490)
+- Enhance mod_data to Use Global Loader Extensions in salt-ssh [#68496](https://github.com/saltstack/salt/issues/68496)
+- Fix race condition in Salt Syndic when multiple Syndic Masters return at the same time and the Master of Masters tries to write to the same file in the job cache. [#68508](https://github.com/saltstack/salt/issues/68508)
+- Patch tornado for CVE-2023-28370 [#68529](https://github.com/saltstack/salt/issues/68529)
+- Fixed some of the commands in the Contributing guide. [#68538](https://github.com/saltstack/salt/issues/68538)
+- Fix check for non-blockdev devices in blockdev.tuned. Check always returned True
+  previously, now actually checks with file.is_blkdev. [#68541](https://github.com/saltstack/salt/issues/68541)
+- Added documentation and CLI help text for the --disable-keepalive option for
+  salt-minion and salt-proxy, which disables the automatic restart mechanism
+  when external process managers like systemd handle daemon restarts. [#68544](https://github.com/saltstack/salt/issues/68544)
+- Upgrade relenv to 0.22.1 and fix Python 3.13 support
+
+  - Updated relenv from 0.21.2 to 0.22.1
+  - Fixed backports module import for Python 3.13 compatibility
+  - Fixed RUSTFLAGS conflicts when compiling cryptography package
+  - Fixed toolchain cache location for relenv 0.22.1
+  - Added Obsoletes directives to prevent EPEL salt3006 package conflicts on Rocky 9 [#68552](https://github.com/saltstack/salt/issues/68552)
+- Fixed minion process name pollution when multiprocessing is disabled [#68553](https://github.com/saltstack/salt/issues/68553)
+
+
+## 3006.17 (2025-11-20)
+
+
+### Fixed
+
+- Render post/pre up/down and hwaddr options for debian-ip. See #58210 and #57820. [#58210](https://github.com/saltstack/salt/issues/58210)
+- Fix event flood by ensuring we do not retry sending the event indefinitely to the Master of Masters. [#61845](https://github.com/saltstack/salt/issues/61845)
+- Prevent `_pygit2.GitError: error loading known_hosts` with certain pygit2/libgit2 versions. [#64121](https://github.com/saltstack/salt/issues/64121)
+- - salt-ssh now supports `state.sls_exists` (#66893) [#66893](https://github.com/saltstack/salt/issues/66893)
+- Allows file.symlink to pass a string to cmd_check [#66939](https://github.com/saltstack/salt/issues/66939)
+- Simplied and sped up `utils.json.find_json` function [#68258](https://github.com/saltstack/salt/issues/68258)
+- Improved runtime performance of chocolatey.installed [#68308](https://github.com/saltstack/salt/issues/68308)
+- Add check for vault in __opts__ var [#68312](https://github.com/saltstack/salt/issues/68312)
+- Fixed user.present not having capability to persist home directory by adding persist_home flag. [#68322](https://github.com/saltstack/salt/issues/68322)
+- Fixed pkg.installed state from showing warning if python rpm package not installed.
+  Fixed pkg.installed state from showing warning and using slow process fork for version comparison when rpmdevtools is installed [#68341](https://github.com/saltstack/salt/issues/68341)
+- Update pre-commit version used in github workflows to 4.3.0 [#68349](https://github.com/saltstack/salt/issues/68349)
+- Fixed issue with network grains in interfaces that don't support ip4 or ip6 [#68355](https://github.com/saltstack/salt/issues/68355)
+- Patch tornado for BDSA-2024-3438 [#68377](https://github.com/saltstack/salt/issues/68377)
+- Patch tornado for BDSA-2024-3439 [#68379](https://github.com/saltstack/salt/issues/68379)
+- Patch tornado for BDSA-2025-4215 [#68381](https://github.com/saltstack/salt/issues/68381)
+- Patch tornado for BDSA-2024-9026 [#68383](https://github.com/saltstack/salt/issues/68383)
+- * Update LZMA to 5.8.2
+  * Update ncurses to 6.5
+  * Update openssl to 3.5.4
+  * Fix shebang creating to work with pip >=25.2
+  * Fix python source hash checking
+  * Update to recent python versions: 3.12.12, 3.11.14, 3.10.19 and 3.9.24. [#68385](https://github.com/saltstack/salt/issues/68385)
+- Fixed the lgpo_reg error when reading REG_BINARY type data in the registry.pol
+  file. [#68387](https://github.com/saltstack/salt/issues/68387)
+- Fix leak in SaltMessageServer where the unpacker was re-used on a stream disconnect. [#68394](https://github.com/saltstack/salt/issues/68394)
+- * Upgrade relenv to 0.21.2:
+    * We refresh the ensurepip bundle during every build so new runtimes ship with pip 25.2 and setuptools 80.9.0.
+    * Windows builds now pull newer SQLite (3.50.4.0) and XZ (5.6.2) sources, copy in a missing XZ config file, and tweak SBOM metadata; the libexpat update is prepared but only runs on older maintenance releases.
+    * Our downloader helpers log more clearly, know about more archive formats, and retry cleanly on transient errors.
+    * pip’s changing install API is handled by runtime wrappers that adapt to all of the current signatures.
+    * Linux verification tests install pip 25.2/25.3 before building setuptools to make sure that flow keeps working. [#68431](https://github.com/saltstack/salt/issues/68431)
+- salt/utils/odict.py has been deprecated and will be removed in 3009. Use the standard library implementation instead. [#68440](https://github.com/saltstack/salt/issues/68440)
+- Fixed issue in cmd execution module that always return "Invalid user" for domain users. [#68450](https://github.com/saltstack/salt/issues/68450)
+- Fixed authentication protocol version downgrade vulnerability (CVE-2025-62349) by adding `minimum_auth_version` configuration option (default: 3) to prevent minions from bypassing security features through protocol downgrade attacks.
+
+  **BREAKING CHANGE:** The default value enforces authentication protocol version 3 or higher. If upgrading a deployment with older minions that do not support protocol v3, you must temporarily set `minimum_auth_version: 0` in the master configuration before upgrading the master, then upgrade all minions before removing this override. [#68467](https://github.com/saltstack/salt/issues/68467)
+- Fixed unsafe YAML loader usage in junos execution module (CVE-2025-62348) [#68469](https://github.com/saltstack/salt/issues/68469)
+
+
+## 3006.16 (2025-09-17)
+
+
+### Fixed
+
+- Fixed an issue with the win_network salt.util to select interfaces
+  by name instead of description. [#58138](https://github.com/saltstack/salt/issues/58138)
+- Fixes debug logging for master AES and session keys to be consistent across crypt.AsyncAuth._authenticate() and crypt.SAuth.authenticate(). Now differentiates between master key rotation and session key rotation. [#68113](https://github.com/saltstack/salt/issues/68113)
+- Fix potential race conditions an memory usage in zeromq request client
+  tranport. [#68297](https://github.com/saltstack/salt/issues/68297)
+- Revert change to store cargo home as a temporary directory [#68311](https://github.com/saltstack/salt/issues/68311)
+- Update openssl FIPS provider to 3.1.2 (certified until 2030) [#68317](https://github.com/saltstack/salt/issues/68317)
+
+
+### Added
+
+- Added the ability to pass the context to pyobjects renderer [#68224](https://github.com/saltstack/salt/issues/68224)
+
+
+## 3006.15 (2025-08-28)
+
+
+### Changed
+
+- cmdmod: invoke a shell only with cmd.shell or when using the shell parameter
+  cmdmod: run PowerShell scripts via -File instead of -Command
+  cmdmod: allow passing args as a list for cmd.script
+  cmdmod: return an error when running a bad command with cmd.powershell [#68156](https://github.com/saltstack/salt/issues/68156)
+
+
+### Fixed
+
+- Fixes issue with the `minion.restart` function not working with systemd. Will
+  now detect if the system is using systemd or is a Windows system and use
+  `service.restart` instead. [#46255](https://github.com/saltstack/salt/issues/46255)
+- Fixed max_depth not respected in file.directory state [#55306](https://github.com/saltstack/salt/issues/55306)
+- Updated CLI examples in docs to conform to bash syntax. Standardized
+  documentation on Windows modules to Google Style Python Docstrings. [#63856](https://github.com/saltstack/salt/issues/63856)
+- Ensure the right HOME environment value is set during Pygit2 remote initialization. [#64121](https://github.com/saltstack/salt/issues/64121)
+- Ensure network connections are cleanly closed in ipc and tcp transports [#67076](https://github.com/saltstack/salt/issues/67076)
+- cmdmod: fix special character handling on Windows [#68096](https://github.com/saltstack/salt/issues/68096)
+- cmdmod: fix quotation handling with Windows and Powershell [#68118](https://github.com/saltstack/salt/issues/68118)
+- Fixed ssh_known_hosts.present failure when ssh host keys changed [#68132](https://github.com/saltstack/salt/issues/68132)
+- Revert 'ipc_write_timeout' change (3006.13) due to multiple reports of this change causing instability [#68151](https://github.com/saltstack/salt/issues/68151)
+- cmdmod: handle cases where the temp script is not removed with cmd.script [#68156](https://github.com/saltstack/salt/issues/68156)
+- Fixed MinionManager.stop() to allow processing of minion event bus when called, to allow jobs returns from `service.restart salt-minion no_block=True` to reach
+  master. [#68183](https://github.com/saltstack/salt/issues/68183)
+- grains.disks: fix exception with incompatible output of Get-PhysicalDisk [#68184](https://github.com/saltstack/salt/issues/68184)
+- Log a useful error if the minion's key is overwritten with bad data; instead of a traceback. [#68190](https://github.com/saltstack/salt/issues/68190)
+- win_lgpo_reg only applies user settings to the registry.pol file. It no longer
+  applies those same settings to the user registry. Those settings will be applied
+  to all users the next time they log in. [#68191](https://github.com/saltstack/salt/issues/68191)
+- salt.crypt.AsyncAuth and salt.crypt.SAuth read the private key from the
+  filesystem a single time. [#68195](https://github.com/saltstack/salt/issues/68195)
+- Modifies systemd_service.{restart,stop} to default to using no_block=True when the service being stopped or restarted is the salt-minion. [#68212](https://github.com/saltstack/salt/issues/68212)
+- Upgrade onedir relenv to 0.20.5:
+    - Update gdbm from 1.25 to 1.26
+    - Update libffi from 3.5.1 to 3.5.2
+    - Update readline from 8.2.13 to 8.3
+    - Update sqlite from 3.50.2 to 3.50.4
+    - Update sqlite on windows from 3.40.1 to 0.35.4 (CVE-2025-6965) [#68291](https://github.com/saltstack/salt/issues/68291)
+
+
+### Added
+
+- Added a new `force` option to pkg.install on Windows to force the installer
+  to run even if the package is already installed [#68102](https://github.com/saltstack/salt/issues/68102)
+- Adds support for creating a scheduled job to restart the minion if the initial
+  attempt at restarting it via `minion.restart` has failed. [#68225](https://github.com/saltstack/salt/issues/68225)
+
+
 ## 3006.14 (2025-07-10)
 
 

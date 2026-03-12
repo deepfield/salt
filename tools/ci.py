@@ -231,7 +231,7 @@ def _get_pr_test_labels_from_event_payload(
     """
     if "pull_request" not in gh_event:
         return []
-    return _filter_test_labels(gh_event["pull_request"]["labels"])
+    return [_[0] for _ in _filter_test_labels(gh_event["pull_request"]["labels"])]
 
 
 def _filter_test_labels(labels: list[dict[str, Any]]) -> list[tuple[str, str]]:
@@ -284,10 +284,14 @@ def get_testing_releases(
         )
     )[-num_major_versions:]
     testing_releases = []
-    # Append the latest minor for each major
+    # Append the latest minor for each major that is older than the current version
     for major in majors:
         minors_of_major = [version for version in releases if version.major == major]
-        testing_releases.append(minors_of_major[-1])
+        latest_minor = minors_of_major[-1]
+        # Only include versions older than current to prevent version paradox
+        # (e.g., don't test upgrading FROM 3007.10 TO 3007.9+dev)
+        if latest_minor < parsed_salt_version:
+            testing_releases.append(latest_minor)
 
     str_releases = [str(version) for version in testing_releases]
 
@@ -544,21 +548,21 @@ def _define_testrun(ctx, changed_files, labels, full):
         )
     if full:
         ctx.info("Full test run chosen")
-        testrun = TestRun(type="full", skip_code_coverage=True)
+        testrun = TestRun(type="full", skip_code_coverage=False)
     elif changed_pkg_requirements_files or changed_test_requirements_files:
         ctx.info(
             "Full test run chosen because there was a change made "
             "to the requirements files."
         )
-        testrun = TestRun(type="full", skip_code_coverage=True)
+        testrun = TestRun(type="full", skip_code_coverage=False)
     elif "test:full" in labels:
         ctx.info("Full test run chosen because the label `test:full` is set.\n")
-        testrun = TestRun(type="full", skip_code_coverage=True)
+        testrun = TestRun(type="full", skip_code_coverage=False)
     else:
         testrun_changed_files_path = tools.utils.REPO_ROOT / "testrun-changed-files.txt"
         testrun = TestRun(
             type="changed",
-            skip_code_coverage=True,
+            skip_code_coverage=False,
             from_filenames=str(
                 testrun_changed_files_path.relative_to(tools.utils.REPO_ROOT)
             ),
@@ -730,6 +734,7 @@ def workflow_config(
         if "pull_request" in gh_event:
             pr = gh_event["pull_request"]["number"]
             labels = _get_pr_test_labels_from_event_payload(gh_event)
+            ctx.info(f"labels are {labels!r}")
         else:
             ctx.warn("The 'pull_request' key was not found on the event payload.")
 
@@ -744,7 +749,7 @@ def workflow_config(
             # Public repositories can use github's arm64 runners.
             config["linux_arm_runner"] = "ubuntu-24.04-arm"
 
-    if event_name != "pull_request" or "test:full" in [_[0] for _ in labels]:
+    if event_name != "pull_request" or "test:full" in labels:
         full = True
         slugs = os.environ.get("FULL_TESTRUN_SLUGS", "")
         if not slugs:
@@ -770,6 +775,10 @@ def workflow_config(
 
     config["skip_code_coverage"] = True
     if "test:coverage" in labels:
+        ctx.info("Code coverage enabled.")
+        config["skip_code_coverage"] = False
+    elif event_name != "pull_request":
+        ctx.info("Code coverage enabled. (not a pr).")
         config["skip_code_coverage"] = False
     else:
         ctx.info("Skipping code coverage.")
@@ -847,10 +856,14 @@ def workflow_config(
         )
     )[-num_major_versions:]
     testing_releases = []
-    # Append the latest minor for each major
+    # Append the latest minor for each major that is older than the current version
     for major in majors:
         minors_of_major = [version for version in releases if version.major == major]
-        testing_releases.append(minors_of_major[-1])
+        latest_minor = minors_of_major[-1]
+        # Only include versions older than current to prevent version paradox
+        # (e.g., don't test upgrading FROM 3007.10 TO 3007.9+dev)
+        if latest_minor < parsed_salt_version:
+            testing_releases.append(latest_minor)
     str_releases = [str(version) for version in testing_releases]
     ctx.info(f"str_releases {str_releases}")
 

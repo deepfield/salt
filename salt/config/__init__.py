@@ -14,7 +14,6 @@ import urllib.parse
 from copy import deepcopy
 
 import salt.crypt
-import salt.defaults
 import salt.defaults.exitcodes
 import salt.exceptions
 import salt.features
@@ -442,6 +441,8 @@ VALID_OPTS = immutabletypes.freeze(
         "return_retry_timer_max": int,
         # Configures amount of return retries
         "return_retry_tries": int,
+        # Configures amount of retries for Syndic to Master of Masters
+        "syndic_retries": int,
         # Specify one or more returners in which all events will be sent to. Requires that the returners
         # in question have an event_return(event) function!
         "event_return": (list, str),
@@ -1005,7 +1006,8 @@ VALID_OPTS = immutabletypes.freeze(
         "publish_signing_algorithm": str,
         "request_server_ttl": int,
         "request_server_aes_session": int,
-        "ipc_write_timeout": int,
+        # Minimum authentication protocol version to accept from minions
+        "minimum_auth_version": int,
     }
 )
 
@@ -1232,6 +1234,7 @@ DEFAULT_MINION_OPTS = immutabletypes.freeze(
         "return_retry_timer": 5,
         "return_retry_timer_max": 10,
         "return_retry_tries": 3,
+        "syndic_retries": 3,
         "random_reauth_delay": 10,
         "winrepo_source_dir": "salt://win/repo-ng/",
         "winrepo_dir": os.path.join(salt.syspaths.BASE_FILE_ROOTS_DIR, "win", "repo"),
@@ -1665,7 +1668,7 @@ DEFAULT_MASTER_OPTS = immutabletypes.freeze(
         "publish_signing_algorithm": "PKCS1v15-SHA1",
         "request_server_aes_session": 0,
         "request_server_ttl": 0,
-        "ipc_write_timeout": salt.defaults.IPC_WRITE_TIMEOUT,
+        "minimum_auth_version": 3,
     }
 )
 
