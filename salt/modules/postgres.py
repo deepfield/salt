@@ -96,6 +96,7 @@ _PRIVILEGES_MAP = {
     "X": "EXECUTE",
     "x": "REFERENCES",
     "d": "DELETE",
+    "m": "MAINTAIN",
     "*": "GRANT",
 }
 _PRIVILEGES_OBJECTS = frozenset(
